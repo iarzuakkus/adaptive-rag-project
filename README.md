@@ -121,9 +121,6 @@ backend/
 5. Cevap kullanıcıya döner
 
 
-* Adaptive RAG
-* Kullanıcı davranışı analizi
-
 ---
 
 ## Hedef
