@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Adaptive RAG",
+  "version": "1.0.0",
+  "description": "Web sayfalarını kazıyıp Python backend'e gönderen Chrome extension.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
+  ],
+  "action": {
+    "default_popup": "ui/popup.html",
+    "default_title": "Adaptive RAG"
+  },
+  "background": {
+    "service_worker": "core/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["scraping/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

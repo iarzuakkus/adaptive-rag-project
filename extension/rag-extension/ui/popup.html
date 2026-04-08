@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adaptive RAG</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="brand">
+        <div class="logo-wrapper">
+          <img src="../assets/logo.svg" alt="Adaptive RAG Logo" class="logo" />
+        </div>
+
+        <div class="brand-text">
+          <h1>Adaptive RAG</h1>
+          <p>Web ve PDF içerik yakalama</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      <button id="scrapeBtn" class="primary-btn">Sayfayı Tara</button>
+
+      <button id="pdfBtn" class="secondary-btn">PDF Olarak Gönder</button>
+
+      <label class="input-label" for="questionInput">Soru</label>
+      <textarea
+        id="questionInput"
+        class="question-input"
+        placeholder="İleride RAG sorgusu için soru yazabilirsin"
+      ></textarea>
+
+      <button id="askBtn" class="secondary-btn">Soru Sor</button>
+
+      <div class="result-card">
+        <div class="result-title">Sonuç</div>
+        <pre id="output">Hazır...</pre>
+      </div>
+    </div>
+  </div>
+
+  <script src="../scraping/cleaner.js"></script>
+  <script src="../core/api.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

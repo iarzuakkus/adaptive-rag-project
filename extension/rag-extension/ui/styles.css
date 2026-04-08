@@ -1,0 +1,153 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 390px;
+  min-height: 520px;
+  font-family: Arial, sans-serif;
+  background: #0f1222;
+  color: #f4f7ff;
+}
+
+.app {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top right, rgba(130, 128, 255, 0.18), transparent 30%),
+    radial-gradient(circle at top left, rgba(0, 255, 209, 0.12), transparent 28%),
+    #0f1222;
+}
+
+.header {
+  padding: 18px 18px 8px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-wrapper {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+}
+
+.logo {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.brand-text h1 {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.brand-text p {
+  margin: 0;
+  font-size: 12px;
+  color: #b6bdd6;
+}
+
+.content {
+  padding: 10px 18px 18px;
+}
+
+.primary-btn,
+.secondary-btn {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  margin-bottom: 10px;
+}
+
+.primary-btn:hover,
+.secondary-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+.primary-btn {
+  background: linear-gradient(90deg, #00ffd1 0%, #8280ff 100%);
+  color: #0f1222;
+  font-weight: 700;
+}
+
+.secondary-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4f7ff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.input-label {
+  display: block;
+  margin: 10px 0 8px;
+  font-size: 13px;
+  color: #d8ddf0;
+}
+
+.question-input {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f7ff;
+  padding: 12px;
+  outline: none;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.question-input::placeholder {
+  color: #98a3c7;
+}
+
+.result-card {
+  margin-top: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 12px;
+}
+
+.result-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: #dfe5fb;
+}
+
+#output {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #edf2ff;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.logo-wrapper {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+}
+
+.logo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
