@@ -1,6 +1,6 @@
 import { WidgetController } from "./controllers/widget-controller.js";
 
-document.addEventListener("DOMContentLoaded", () => {
+function initializeApp() {
   const appRoot = document.getElementById("app");
 
   if (!appRoot) {
@@ -8,6 +8,12 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  const controller = new WidgetController(appRoot);
-  controller.init();
-});
+  try {
+    const controller = new WidgetController(appRoot);
+    controller.init();
+  } catch (error) {
+    console.error("Uygulama başlatılırken hata oluştu:", error);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", initializeApp);

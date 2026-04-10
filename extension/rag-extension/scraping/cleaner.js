@@ -38,3 +38,18 @@ function chunkText(text, chunkSize = 500) {
 
   return chunks;
 }
+
+function cleanPageContent(data) {
+  const cleanedTitle = cleanText(data?.title || "");
+  const cleanedUrl = data?.url || "";
+  const cleanedContent = cleanText(data?.content || "");
+  const chunks = chunkText(cleanedContent);
+
+  return {
+    title: cleanedTitle,
+    url: cleanedUrl,
+    content: cleanedContent,
+    chunks,
+    chunkCount: chunks.length
+  };
+}

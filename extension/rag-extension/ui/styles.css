@@ -20,8 +20,6 @@
 
   --popup-width: 380px;
   --popup-height: 560px;
-
-  font-family: Inter, Arial, sans-serif;
 }
 
 * {
@@ -36,10 +34,8 @@ body {
   min-height: var(--popup-height);
   background: var(--color-bg);
   color: var(--color-text);
-}
-
-body {
   overflow: hidden;
+  font-family: Inter, Arial, sans-serif;
 }
 
 .app-shell {
@@ -77,12 +73,14 @@ body {
   gap: 12px;
 }
 
+/* TEK logo-box (temizlendi) */
 .logo-box {
   width: 42px;
   height: 42px;
   border-radius: 14px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--gradient-main);
   box-shadow: var(--shadow-main);
   flex-shrink: 0;
@@ -92,6 +90,13 @@ body {
   width: 24px;
   height: 24px;
   display: block;
+}
+
+.logo-mark {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .brand-text {
@@ -309,23 +314,4 @@ body {
 
 .hidden {
   display: none !important;
-}
-
-.logo-box {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gradient-main);
-  box-shadow: var(--shadow-main);
-  flex-shrink: 0;
-}
-
-.logo-mark {
-  color: #ffffff;
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 1;
 }
