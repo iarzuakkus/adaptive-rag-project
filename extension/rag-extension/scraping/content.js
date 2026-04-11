@@ -1,6 +1,4 @@
-import { cleanPageContent } from "./cleaner.js";
-
-console.log("Adaptive RAG content script aktif.");
+console.log("[CONTENT] Script yüklendi.");
 
 function scrapePageContent() {
   const title = document.title || "";
@@ -19,51 +17,57 @@ function isPdfPage() {
   return currentUrl.endsWith(".pdf") || currentUrl.includes(".pdf?");
 }
 
-function handleScrapePage(sendResponse) {
-  const rawData = scrapePageContent();
-
-  // TEMİZLEME BURADA YAPILIYOR
-  const cleanedData = cleanPageContent(rawData);
-
-  console.log("Raw Data:", rawData);
-  console.log("Cleaned Data:", cleanedData);
-
-  sendResponse({
-    success: true,
-    data: cleanedData
-  });
-}
-
-function handleCheckPdf(sendResponse) {
-  sendResponse({
-    success: true,
-    isPdf: isPdfPage(),
-    url: window.location.href
-  });
-}
-
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log("[CONTENT] Mesaj alındı:", request);
+
   try {
+    if (!request || !request.type) {
+      console.error("[CONTENT] Geçersiz request");
+      sendResponse({ success: false });
+      return;
+    }
+
     if (request.type === "SCRAPE_PAGE") {
-      handleScrapePage(sendResponse);
-      return true;
+      console.log("[CONTENT] SCRAPE_PAGE başladı");
+
+      const rawData = scrapePageContent();
+
+      if (typeof cleanPageContent !== "function") {
+        console.error("[CONTENT] cleanPageContent bulunamadı!");
+        sendResponse({ success: false });
+        return;
+      }
+
+      const cleanedData = cleanPageContent(rawData);
+
+      console.log("[CONTENT] Raw Data:", rawData);
+      console.log("[CONTENT] Cleaned Data:", cleanedData);
+
+      sendResponse({
+        success: true,
+        data: cleanedData
+      });
+
+      return;
     }
 
     if (request.type === "CHECK_PDF") {
-      handleCheckPdf(sendResponse);
-      return true;
+      sendResponse({
+        success: true,
+        isPdf: isPdfPage(),
+        url: window.location.href
+      });
+      return;
     }
 
-    sendResponse({
-      success: false,
-      message: "Bilinmeyen istek tipi."
-    });
+    console.warn("[CONTENT] Bilinmeyen type");
+    sendResponse({ success: false });
+
   } catch (error) {
+    console.error("[CONTENT] HATA:", error);
     sendResponse({
       success: false,
-      message: error.message || "Bir hata oluştu."
+      message: error.message
     });
   }
-
-  return true;
 });

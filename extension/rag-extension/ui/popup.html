@@ -7,7 +7,75 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div id="app" class="app-shell"></div>
+  <div id="app" class="app-shell">
+    <div class="panel">
+      <div class="header">
+        <div class="brand">
+          <div class="logo-box">
+            <span class="logo-mark">R</span>
+          </div>
+          <div class="brand-text">
+            <h1 class="brand-title">Adaptive RAG</h1>
+            <p class="brand-subtitle">Sayfa tarama</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="chat">Chat</button>
+        <button class="tab-btn" data-tab="scrape">Sayfa Tarama</button>
+      </div>
+
+      <div class="tab-panel active" id="chatPanel">
+        <div class="response-area">
+          <div class="message system">
+            Chat bölümü şimdilik hazır bekliyor.
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel hidden" id="scrapePanel">
+        <div class="response-area scrape-output">
+          <div class="message system" id="scrapeStatus">
+            Sayfayı taramak için aşağıdaki butona bas.
+          </div>
+
+          <div class="result-box hidden" id="resultBox">
+            <div class="result-section">
+              <div class="result-label">Başlık</div>
+              <div class="result-value" id="resultTitle">-</div>
+            </div>
+
+            <div class="result-section">
+              <div class="result-label">URL</div>
+              <div class="result-value" id="resultUrl">-</div>
+            </div>
+
+            <div class="result-section">
+              <div class="result-label">Chunk Sayısı</div>
+              <div class="result-value" id="resultChunkCount">-</div>
+            </div>
+
+            <div class="result-section">
+              <div class="result-label">Temizlenmiş İçerik Önizleme</div>
+              <div class="result-preview" id="resultPreview">-</div>
+            </div>
+
+            <div class="result-section">
+              <div class="result-label">İlk Chunklar</div>
+              <div id="resultChunks"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-wrapper">
+          <div class="action-row">
+            <button class="primary-btn" id="scrapeBtn">Sayfayı Tara</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="./popup.js"></script>
 </body>
