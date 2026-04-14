@@ -14,7 +14,5 @@ def root():
     return {"message": "Adaptive RAG backend çalışıyor"}
 
 
-'''
-python -m uvicorn app:app --reload
 
-'''
+# python -m uvicorn app:app --reload

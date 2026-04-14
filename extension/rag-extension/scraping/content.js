@@ -1,15 +1,50 @@
 console.log("[CONTENT] Script yüklendi.");
 
-function scrapePageContent() {
-  const title = document.title || "";
-  const url = window.location.href || "";
-  const content = document.body ? document.body.innerText || "" : "";
+function removeNoise() {
+  try {
+    document
+      .querySelectorAll("nav, header, footer, aside, script, style, noscript")
+      .forEach((el) => el.remove());
+  } catch (error) {
+    console.error("[CONTENT] removeNoise hatası:", error);
+  }
+}
 
-  return {
-    title,
-    url,
-    content
+function extractStructuredContent() {
+  removeNoise();
+
+  const data = {
+    title: document.title || "",
+    url: window.location.href || "",
+    content: {
+      headings: [],
+      paragraphs: [],
+      lists: []
+    }
   };
+
+  document.querySelectorAll("h1, h2, h3").forEach((el) => {
+    const text = (el.innerText || "").trim();
+    if (text.length > 5) {
+      data.content.headings.push(text);
+    }
+  });
+
+  document.querySelectorAll("p").forEach((el) => {
+    const text = (el.innerText || "").trim();
+    if (text.length > 20) {
+      data.content.paragraphs.push(text);
+    }
+  });
+
+  document.querySelectorAll("li").forEach((el) => {
+    const text = (el.innerText || "").trim();
+    if (text.length > 5) {
+      data.content.lists.push(text);
+    }
+  });
+
+  return data;
 }
 
 function isPdfPage() {
@@ -22,33 +57,37 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   try {
     if (!request || !request.type) {
-      console.error("[CONTENT] Geçersiz request");
-      sendResponse({ success: false });
-      return;
+      sendResponse({
+        success: false,
+        message: "Geçersiz request"
+      });
+      return true;
     }
 
     if (request.type === "SCRAPE_PAGE") {
       console.log("[CONTENT] SCRAPE_PAGE başladı");
 
-      const rawData = scrapePageContent();
+      const structuredData = extractStructuredContent();
+      console.log("[CONTENT] Structured data:", structuredData);
 
-      if (typeof cleanPageContent !== "function") {
-        console.error("[CONTENT] cleanPageContent bulunamadı!");
-        sendResponse({ success: false });
-        return;
+      if (typeof cleanPageContent === "function") {
+        const cleanedData = cleanPageContent(structuredData);
+        console.log("[CONTENT] Cleaned data:", cleanedData);
+
+        sendResponse({
+          success: true,
+          data: cleanedData
+        });
+      } else {
+        console.warn("[CONTENT] cleanPageContent bulunamadı, ham veri dönülüyor.");
+
+        sendResponse({
+          success: true,
+          data: structuredData
+        });
       }
 
-      const cleanedData = cleanPageContent(rawData);
-
-      console.log("[CONTENT] Raw Data:", rawData);
-      console.log("[CONTENT] Cleaned Data:", cleanedData);
-
-      sendResponse({
-        success: true,
-        data: cleanedData
-      });
-
-      return;
+      return true;
     }
 
     if (request.type === "CHECK_PDF") {
@@ -57,17 +96,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         isPdf: isPdfPage(),
         url: window.location.href
       });
-      return;
+      return true;
     }
 
-    console.warn("[CONTENT] Bilinmeyen type");
-    sendResponse({ success: false });
-
-  } catch (error) {
-    console.error("[CONTENT] HATA:", error);
     sendResponse({
       success: false,
-      message: error.message
+      message: "Bilinmeyen request type"
     });
+    return true;
+  } catch (error) {
+    console.error("[CONTENT] HATA:", error);
+
+    sendResponse({
+      success: false,
+      message: error.message || "Bilinmeyen content script hatası"
+    });
+
+    return true;
   }
 });

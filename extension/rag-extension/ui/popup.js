@@ -36,29 +36,61 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
+  function isRestrictedUrl(url) {
+    if (!url) return true;
+
+    return (
+      url.startsWith("chrome://") ||
+      url.startsWith("chrome-extension://") ||
+      url.startsWith("devtools://") ||
+      url.startsWith("edge://") ||
+      url.startsWith("about:")
+    );
+  }
+
   scrapeBtn.addEventListener("click", () => {
     scrapeStatus.textContent = "Sayfa taranıyor...";
     resultBox.classList.add("hidden");
     resultChunks.innerHTML = "";
 
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+      console.log("[POPUP] Bulunan sekmeler:", tabs);
+
       if (!tabs || tabs.length === 0) {
         scrapeStatus.textContent = "Aktif sekme bulunamadı.";
         return;
       }
 
+      const activeTab = tabs[0];
+      console.log("[POPUP] Aktif tab:", activeTab);
+
+      if (!activeTab.id) {
+        scrapeStatus.textContent = "Aktif sekme ID bilgisi alınamadı.";
+        return;
+      }
+
+      if (isRestrictedUrl(activeTab.url)) {
+        scrapeStatus.textContent =
+          "Bu sayfa taranamaz. Normal bir web sayfası açıp tekrar dene.";
+        return;
+      }
+
       chrome.tabs.sendMessage(
-        tabs[0].id,
+        activeTab.id,
         { type: "SCRAPE_PAGE" },
         (response) => {
           if (chrome.runtime.lastError) {
             console.error("[POPUP] Hata:", chrome.runtime.lastError.message);
-            scrapeStatus.textContent = "Content script ile bağlantı kurulamadı.";
+            scrapeStatus.textContent =
+              "Content script ile bağlantı kurulamadı. Sayfayı yenileyip tekrar dene.";
             return;
           }
 
+          console.log("[POPUP] Response:", response);
+
           if (!response || !response.success) {
-            scrapeStatus.textContent = "Veri alınamadı.";
+            scrapeStatus.textContent =
+              response?.message || "Veri alınamadı.";
             return;
           }
 
@@ -71,15 +103,11 @@ document.addEventListener("DOMContentLoaded", () => {
           resultTitle.textContent = data.title || "-";
           resultUrl.textContent = data.url || "-";
           resultChunkCount.textContent = data.chunkCount ?? 0;
-
-          const previewText = data.content
-            ? data.content.slice(0, 700)
-            : "-";
-
-          resultPreview.textContent = previewText;
+          resultPreview.textContent = data.preview || "-";
 
           if (chunks.length === 0) {
-            resultChunks.innerHTML = `<div class="chunk-item">Chunk bulunamadı.</div>`;
+            resultChunks.innerHTML =
+              `<div class="chunk-item">Chunk bulunamadı.</div>`;
             return;
           }
 
@@ -88,10 +116,12 @@ document.addEventListener("DOMContentLoaded", () => {
           shownChunks.forEach((chunk, index) => {
             const chunkEl = document.createElement("div");
             chunkEl.className = "chunk-item";
+
             chunkEl.innerHTML = `
-              <div class="chunk-title">Chunk ${index + 1}</div>
-              <div class="chunk-text">${chunk}</div>
+              <div class="chunk-title">Chunk ${index + 1} (${chunk.type || "unknown"})</div>
+              <div class="chunk-text">${chunk.content || "-"}</div>
             `;
+
             resultChunks.appendChild(chunkEl);
           });
         }
