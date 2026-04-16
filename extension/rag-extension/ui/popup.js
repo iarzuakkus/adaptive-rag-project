@@ -48,10 +48,49 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
-  scrapeBtn.addEventListener("click", () => {
-    scrapeStatus.textContent = "Sayfa taranıyor...";
+  function resetResultArea() {
     resultBox.classList.add("hidden");
     resultChunks.innerHTML = "";
+    resultTitle.textContent = "-";
+    resultUrl.textContent = "-";
+    resultChunkCount.textContent = "0";
+    resultPreview.textContent = "-";
+  }
+
+  function escapeHtml(text) {
+    return String(text || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function renderChunkItem(chunk, index) {
+    const chunkEl = document.createElement("div");
+    chunkEl.className = "chunk-item";
+
+    const type = chunk.type || "unknown";
+    const content = escapeHtml(chunk.content || "-");
+    const tag = chunk.tag ? ` | tag: ${escapeHtml(chunk.tag)}` : "";
+    const textLength =
+      typeof chunk.textLength === "number" ? ` | len: ${chunk.textLength}` : "";
+    const linkDensity =
+      typeof chunk.linkDensity === "number"
+        ? ` | linkDensity: ${chunk.linkDensity}`
+        : "";
+
+    chunkEl.innerHTML = `
+      <div class="chunk-title">Chunk ${index + 1} (${escapeHtml(type)}${tag}${textLength}${linkDensity})</div>
+      <div class="chunk-text">${content}</div>
+    `;
+
+    return chunkEl;
+  }
+
+  scrapeBtn.addEventListener("click", () => {
+    scrapeStatus.textContent = "Sayfa taranıyor...";
+    resetResultArea();
 
     chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
       console.log("[POPUP] Bulunan sekmeler:", tabs);
@@ -95,33 +134,45 @@ document.addEventListener("DOMContentLoaded", () => {
           }
 
           const data = response.data || {};
+
           const chunks = Array.isArray(data.chunks) ? data.chunks : [];
+          const blockChunks = Array.isArray(data.blockChunks) ? data.blockChunks : [];
+          const blocks = Array.isArray(data.blocks) ? data.blocks : [];
+
+          const preferredChunks = blockChunks.length > 0 ? blockChunks : chunks;
+          const preferredChunkCount =
+            typeof data.blockChunkCount === "number" && blockChunks.length > 0
+              ? data.blockChunkCount
+              : (typeof data.chunkCount === "number" ? data.chunkCount : preferredChunks.length);
 
           scrapeStatus.textContent = "Sayfa başarıyla tarandı.";
           resultBox.classList.remove("hidden");
 
           resultTitle.textContent = data.title || "-";
           resultUrl.textContent = data.url || "-";
-          resultChunkCount.textContent = data.chunkCount ?? 0;
-          resultPreview.textContent = data.preview || "-";
+          resultChunkCount.textContent = String(preferredChunkCount);
 
-          if (chunks.length === 0) {
+          if (data.preview) {
+            resultPreview.textContent = data.preview;
+          } else if (blocks.length > 0) {
+            resultPreview.textContent = blocks
+              .slice(0, 2)
+              .map((block) => block.text || "")
+              .join("\n\n") || "-";
+          } else {
+            resultPreview.textContent = "-";
+          }
+
+          if (preferredChunks.length === 0) {
             resultChunks.innerHTML =
               `<div class="chunk-item">Chunk bulunamadı.</div>`;
             return;
           }
 
-          const shownChunks = chunks.slice(0, 3);
+          const shownChunks = preferredChunks.slice(0, 5);
 
           shownChunks.forEach((chunk, index) => {
-            const chunkEl = document.createElement("div");
-            chunkEl.className = "chunk-item";
-
-            chunkEl.innerHTML = `
-              <div class="chunk-title">Chunk ${index + 1} (${chunk.type || "unknown"})</div>
-              <div class="chunk-text">${chunk.content || "-"}</div>
-            `;
-
+            const chunkEl = renderChunkItem(chunk, index);
             resultChunks.appendChild(chunkEl);
           });
         }
