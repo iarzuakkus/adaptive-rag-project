@@ -88,6 +88,21 @@ document.addEventListener("DOMContentLoaded", () => {
     return chunkEl;
   }
 
+  function buildPreviewFromBlocks(blocks) {
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+      return "";
+    }
+
+    return blocks
+      .slice(0, 3)
+      .map((block, index) => {
+        const tag = block?.tag ? `[${block.tag}] ` : "";
+        const text = block?.text || "-";
+        return `${index + 1}. ${tag}${text}`;
+      })
+      .join("\n\n---\n\n");
+  }
+
   scrapeBtn.addEventListener("click", () => {
     scrapeStatus.textContent = "Sayfa taranıyor...";
     resetResultArea();
@@ -140,25 +155,31 @@ document.addEventListener("DOMContentLoaded", () => {
           const blocks = Array.isArray(data.blocks) ? data.blocks : [];
 
           const preferredChunks = blockChunks.length > 0 ? blockChunks : chunks;
-          const preferredChunkCount =
-            typeof data.blockChunkCount === "number" && blockChunks.length > 0
+
+          const blockChunkCount =
+            typeof data.blockChunkCount === "number"
               ? data.blockChunkCount
-              : (typeof data.chunkCount === "number" ? data.chunkCount : preferredChunks.length);
+              : blockChunks.length;
+
+          const structuredChunkCount =
+            typeof data.chunkCount === "number"
+              ? data.chunkCount
+              : chunks.length;
 
           scrapeStatus.textContent = "Sayfa başarıyla tarandı.";
           resultBox.classList.remove("hidden");
 
           resultTitle.textContent = data.title || "-";
           resultUrl.textContent = data.url || "-";
-          resultChunkCount.textContent = String(preferredChunkCount);
+          resultChunkCount.textContent =
+            `Block Chunk: ${blockChunkCount} | Structured Chunk: ${structuredChunkCount}`;
 
-          if (data.preview) {
+          const previewFromBlocks = buildPreviewFromBlocks(blocks);
+
+          if (previewFromBlocks) {
+            resultPreview.textContent = previewFromBlocks;
+          } else if (data.preview) {
             resultPreview.textContent = data.preview;
-          } else if (blocks.length > 0) {
-            resultPreview.textContent = blocks
-              .slice(0, 2)
-              .map((block) => block.text || "")
-              .join("\n\n") || "-";
           } else {
             resultPreview.textContent = "-";
           }

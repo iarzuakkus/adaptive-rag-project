@@ -120,9 +120,7 @@ function isLikelyContentBlock(el) {
   }
 
   if (
-    ["script", "style", "noscript", "nav", "header", "footer", "aside"].includes(
-      tag
-    )
+    ["script", "style", "noscript", "nav", "header", "footer", "aside"].includes(tag)
   ) {
     return false;
   }
@@ -149,10 +147,12 @@ function isLikelyContentBlock(el) {
     return false;
   }
 
-  if (tag === "div" || tag === "td" || tag === "th") {
-    if (childCount > 20 && textLength < 500) {
-      return false;
-    }
+  if ((tag === "td" || tag === "div" || tag === "section") && textLength > 1200 && childCount > 8) {
+    return false;
+  }
+
+  if (childCount > 10 && ownTextLength < 20 && textLength > 300) {
+    return false;
   }
 
   if (childCount === 0 && textLength >= 40) {
@@ -215,6 +215,51 @@ function isDuplicateOfParent(el) {
     return false;
   }
 }
+function splitLargeBlockElement(el) {
+  const subBlocks = [];
+  const seen = new Set();
+
+  const childSelectors = "h1, h2, h3, h4, h5, h6, p, li, td > div, div, span";
+
+  try {
+    el.querySelectorAll(childSelectors).forEach((child) => {
+      const text = normalizeText(child.innerText || "");
+
+      if (text.length < 40) {
+        return;
+      }
+
+      const childTextLength = text.length;
+      const childLinkDensity = calculateLinkDensity(child);
+
+      if (childLinkDensity > 0.7) {
+        return;
+      }
+
+      const key = text.slice(0, 300);
+      if (seen.has(key)) {
+        return;
+      }
+
+      seen.add(key);
+
+      subBlocks.push({
+        text,
+        tag: (child.tagName || "").toLowerCase(),
+        className: typeof child.className === "string" ? child.className : "",
+        id: child.id || "",
+        textLength: childTextLength,
+        linkDensity: childLinkDensity,
+        childCount: child.children.length,
+        ownTextLength: getOwnTextLength(child)
+      });
+    });
+  } catch (error) {
+    console.error("[CONTENT] splitLargeBlockElement hatası:", error);
+  }
+
+  return subBlocks;
+}
 
 function extractBlocks(root) {
   const blocks = [];
@@ -250,6 +295,26 @@ function extractBlocks(root) {
 
       if (text.length < 40) {
         return;
+      }
+
+      if (
+        ["td", "div", "section"].includes((el.tagName || "").toLowerCase()) &&
+        text.length > 700
+      ) {
+        const splitBlocks = splitLargeBlockElement(el);
+
+        if (splitBlocks.length >= 2) {
+          splitBlocks.forEach((block) => {
+            const key = block.text.slice(0, 500);
+
+            if (!seen.has(key)) {
+              seen.add(key);
+              blocks.push(block);
+            }
+          });
+
+          return;
+        }
       }
 
       const key = text.slice(0, 500);
