@@ -25,6 +25,10 @@
     {
       "matches": ["<all_urls>"],
       "js": [
+        "scraping/text-utils.js",
+        "scraping/dom-cleaner.js",
+        "scraping/block-utils.js",
+        "scraping/extractor.js",
         "scraping/cleaner.js",
         "scraping/content.js"
       ],
