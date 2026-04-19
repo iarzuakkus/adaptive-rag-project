@@ -22,8 +22,8 @@
       </div>
 
       <div class="tabs">
-        <button class="tab-btn active" data-tab="chat">Chat</button>
-        <button class="tab-btn" data-tab="scrape">Sayfa Tarama</button>
+        <button type="button" class="tab-btn active" data-tab="chat">Chat</button>
+        <button type="button" class="tab-btn" data-tab="scrape">Sayfa Tarama</button>
       </div>
 
       <div class="tab-panel active" id="chatPanel">
@@ -70,14 +70,15 @@
 
         <div class="input-wrapper">
           <div class="action-row">
-            <button class="primary-btn" id="scrapeBtn">Sayfayı Tara</button>
+            <button type="button" class="primary-btn" id="scrapeBtn">
+              Sayfayı Tara
+            </button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="../scraping/cleaner.js"></script>
   <script type="module" src="./popup.js"></script>
 </body>
 </html>

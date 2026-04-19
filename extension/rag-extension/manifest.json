@@ -29,7 +29,14 @@
         "scraping/dom-cleaner.js",
         "scraping/block-utils.js",
         "scraping/extractor.js",
-        "scraping/cleaner.js",
+
+        "scraping/cleaner/cleaner-text-utils.js",
+        "scraping/cleaner/cleaner-chunks.js",
+        "scraping/cleaner/cleaner-scoring.js",
+        "scraping/cleaner/cleaner-blocks.js",
+        "scraping/cleaner/cleaner-page.js",
+        "scraping/cleaner/cleaner-entry.js",
+
         "scraping/content.js"
       ],
       "run_at": "document_idle"
