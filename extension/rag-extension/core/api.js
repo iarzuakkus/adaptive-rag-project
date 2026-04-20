@@ -72,3 +72,9 @@ async function sendPdfUrl(pdfUrl) {
     };
   }
 }
+
+export {
+  sendPageData,
+  askQuestion,
+  sendPdfUrl
+};

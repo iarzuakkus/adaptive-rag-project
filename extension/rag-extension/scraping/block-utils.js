@@ -132,9 +132,18 @@ function splitLargeBlockElement(el) {
 
       seen.add(key);
 
+      const tag = (child.tagName || "").toLowerCase();
+
+      const type = tag.startsWith("h")
+        ? "heading"
+        : tag === "li"
+        ? "list_item"
+        : "paragraph";
+
       subBlocks.push({
+        type,
         text,
-        tag: (child.tagName || "").toLowerCase(),
+        tag,
         className: typeof child.className === "string" ? child.className : "",
         id: child.id || "",
         textLength: text.length,

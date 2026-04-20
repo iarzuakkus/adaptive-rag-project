@@ -1,26 +1,52 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
+from typing import Optional
 
 router = APIRouter()
+
+
+
+class Block(BaseModel):
+    type: Optional[str] = "paragraph"
+    text: str
+
 
 class IngestRequest(BaseModel):
     title: str
     url: str
-    content: str
-    chunks: Optional[List[str]] = None
+    blocks: List[Block]
+
 
 @router.post("/ingest")
 def ingest(data: IngestRequest):
-    chunks = data.chunks if data.chunks is not None else [data.content]
-
     print("Yeni veri geldi:")
     print("Title:", data.title)
     print("URL:", data.url)
+    print("Block sayısı:", len(data.blocks))
+
+    # sadece paragraf olanları al
+    paragraph_blocks = [
+    b.text for b in data.blocks if (b.type or "paragraph") == "paragraph"
+    ]
+
+    print("Paragraf sayısı:", len(paragraph_blocks))
+
+    # burada chunking yapılacak (şimdilik basit bırakıyoruz)
+    chunks = []
+
+    for text in paragraph_blocks:
+        words = text.split()
+        chunk_size = 100
+
+        for i in range(0, len(words), chunk_size):
+            chunk = " ".join(words[i:i + chunk_size])
+            chunks.append(chunk)
+
     print("Chunk sayısı:", len(chunks))
 
     return {
         "success": True,
-        "message": "Veri alındı",
-        "chunk_count": len(chunks)
+        "blocks": len(data.blocks),
+        "chunks": len(chunks)
     }

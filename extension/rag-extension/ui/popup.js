@@ -1,3 +1,5 @@
+import { sendPageData } from "../core/api.js";
+
 document.addEventListener("DOMContentLoaded", () => {
   console.log("[POPUP] Popup hazır.");
 
@@ -88,7 +90,7 @@ document.addEventListener("DOMContentLoaded", () => {
     chunkEl.className = "chunk-item";
 
     const type = chunk?.type || "unknown";
-    const content = escapeHtml(chunk?.content || "-");
+    const content = escapeHtml(chunk?.text || chunk?.content || "-");
     const tag = chunk?.tag ? ` | tag: ${escapeHtml(chunk.tag)}` : "";
     const textLength =
       typeof chunk?.textLength === "number"
@@ -251,7 +253,7 @@ document.addEventListener("DOMContentLoaded", () => {
       chrome.tabs.sendMessage(
         activeTab.id,
         { type: "SCRAPE_PAGE" },
-        (response) => {
+        async (response) => {
           if (chrome.runtime.lastError) {
             console.error("[POPUP] Hata:", chrome.runtime.lastError.message);
             scrapeStatus.textContent =
@@ -267,7 +269,26 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
           }
 
-          renderResult(response.data || {});
+          const pageData = response.data || {};
+
+          scrapeStatus.textContent = "Backend'e gönderiliyor...";
+
+          const backendResult = await sendPageData(pageData);
+
+          console.log("[POPUP] Backend sonucu:", backendResult);
+
+          if (!backendResult || backendResult.success === false) {
+            scrapeStatus.textContent =
+              backendResult?.message || "Backend'e veri gönderilemedi.";
+            return;
+          }
+
+          renderResult({
+            ...pageData,
+            ...backendResult
+          });
+
+          scrapeStatus.textContent = "Veri backend'e gönderildi.";
         }
       );
     });

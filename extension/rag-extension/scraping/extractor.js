@@ -60,7 +60,14 @@ function extractBlocks(root) {
 
       seen.add(key);
 
+      const type = tag.startsWith("h")
+        ? "heading"
+        : tag === "li"
+        ? "list_item"
+        : "paragraph";
+
       blocks.push({
+        type,
         text,
         tag,
         className: typeof el.className === "string" ? el.className : "",
