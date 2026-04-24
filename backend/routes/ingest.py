@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import List
-from typing import Optional
+from typing import List, Optional
+
+from services.quality_control_service import apply_quality_control
 
 router = APIRouter()
-
 
 
 class Block(BaseModel):
@@ -25,14 +25,26 @@ def ingest(data: IngestRequest):
     print("URL:", data.url)
     print("Block sayısı:", len(data.blocks))
 
-    # sadece paragraf olanları al
+    raw_blocks = [block.model_dump() for block in data.blocks]
+
+    qc_result = apply_quality_control(raw_blocks)
+
+    clean_blocks = qc_result["blocks"]
+    qc_stats = qc_result["stats"]
+
+    print("QC toplam blok:", qc_stats["total_blocks"])
+    print("QC düşük kalite elenen:", qc_stats["removed_low_quality"])
+    print("QC tekrar elenen:", qc_stats["removed_duplicates"])
+    print("QC kalan blok:", qc_stats["kept_blocks"])
+
     paragraph_blocks = [
-    b.text for b in data.blocks if (b.type or "paragraph") == "paragraph"
+        block["text"]
+        for block in clean_blocks
+        if (block.get("type") or "paragraph") == "paragraph"
     ]
 
-    print("Paragraf sayısı:", len(paragraph_blocks))
+    print("Temiz paragraf sayısı:", len(paragraph_blocks))
 
-    # burada chunking yapılacak (şimdilik basit bırakıyoruz)
     chunks = []
 
     for text in paragraph_blocks:
@@ -47,6 +59,12 @@ def ingest(data: IngestRequest):
 
     return {
         "success": True,
-        "blocks": len(data.blocks),
+        "title": data.title,
+        "url": data.url,
+        "quality_control": qc_stats,
+        "blocks": {
+            "raw": len(data.blocks),
+            "clean": len(clean_blocks)
+        },
         "chunks": len(chunks)
     }
