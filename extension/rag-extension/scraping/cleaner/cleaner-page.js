@@ -9,29 +9,15 @@ function cleanPageContent(data) {
   };
 
   const previewText = buildCombinedPreview(cleanedStructuredContent);
-  const rawStructuredChunks = buildStructuredChunks(cleanedStructuredContent);
-
-  const structuredChunks = rawStructuredChunks.flatMap((item) => {
-    const pieces = chunkText(item.content, 500);
-
-    return pieces.map((piece) => ({
-      type: item.type,
-      content: piece
-    }));
-  });
-
+  const structuredContent = buildStructuredContent(cleanedStructuredContent);
   const cleanedBlocks = cleanBlocks(data?.blocks || []);
-  const blockChunks = buildBlockChunks(cleanedBlocks, 500);
 
   return {
     title: cleanedTitle,
     url: cleanedUrl,
     content: cleanedStructuredContent,
     preview: previewText,
-    chunks: structuredChunks,
-    chunkCount: structuredChunks.length,
-    blocks: cleanedBlocks,
-    blockChunks,
-    blockChunkCount: blockChunks.length
+    structuredContent,
+    blocks: cleanedBlocks
   };
 }

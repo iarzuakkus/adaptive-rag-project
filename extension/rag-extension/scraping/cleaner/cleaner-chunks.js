@@ -16,54 +16,29 @@ function buildCombinedPreview(content) {
   return previewParts.join("\n\n");
 }
 
-function buildStructuredChunks(content) {
-  const chunks = [];
+function buildStructuredContent(content) {
+  const items = [];
 
   content.headings.forEach((item) => {
-    chunks.push({
+    items.push({
       type: "heading",
       content: item
     });
   });
 
   content.paragraphs.forEach((item) => {
-    chunks.push({
+    items.push({
       type: "paragraph",
       content: item
     });
   });
 
   content.lists.forEach((item) => {
-    chunks.push({
+    items.push({
       type: "list",
       content: item
     });
   });
 
-  return chunks;
-}
-
-function buildBlockChunks(blocks, chunkSize = 500) {
-  const result = [];
-
-  blocks.forEach((block) => {
-    const pieces = chunkText(block.text, chunkSize);
-
-    pieces.forEach((piece, index) => {
-      result.push({
-        type: "block",
-        content: piece,
-        tag: block.tag,
-        className: block.className,
-        id: block.id,
-        textLength: piece.length,
-        linkDensity: block.linkDensity,
-        sourceTextLength: block.textLength,
-        chunkIndex: index,
-        score: block.score
-      });
-    });
-  });
-
-  return result;
+  return items;
 }

@@ -3,6 +3,9 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 from services.quality_control_service import apply_quality_control
+from services.chunking_service import semantic_chunk_blocks
+from core.embeddings import generate_embeddings
+from core.vector_store import vector_store
 
 router = APIRouter()
 
@@ -20,10 +23,13 @@ class IngestRequest(BaseModel):
 
 @router.post("/ingest")
 def ingest(data: IngestRequest):
-    print("Yeni veri geldi:")
+    print("\n" + "=" * 80)
+    print("YENİ INGEST İSTEĞİ")
+    print("=" * 80)
+
     print("Title:", data.title)
     print("URL:", data.url)
-    print("Block sayısı:", len(data.blocks))
+    print("Gelen blok sayısı:", len(data.blocks))
 
     raw_blocks = [block.model_dump() for block in data.blocks]
 
@@ -32,30 +38,39 @@ def ingest(data: IngestRequest):
     clean_blocks = qc_result["blocks"]
     qc_stats = qc_result["stats"]
 
-    print("QC toplam blok:", qc_stats["total_blocks"])
-    print("QC düşük kalite elenen:", qc_stats["removed_low_quality"])
-    print("QC tekrar elenen:", qc_stats["removed_duplicates"])
-    print("QC kalan blok:", qc_stats["kept_blocks"])
+    print("\nQUALITY CONTROL")
+    print("-" * 40)
+    print("Toplam blok:", qc_stats["total_blocks"])
+    print("Düşük kalite elenen:", qc_stats["removed_low_quality"])
+    print("Tekrar elenen:", qc_stats["removed_duplicates"])
+    print("Kalan blok:", qc_stats["kept_blocks"])
 
-    paragraph_blocks = [
-        block["text"]
-        for block in clean_blocks
-        if (block.get("type") or "paragraph") == "paragraph"
-    ]
+    chunks = semantic_chunk_blocks(clean_blocks)
 
-    print("Temiz paragraf sayısı:", len(paragraph_blocks))
+    print("\nSEMANTIC CHUNKING")
+    print("-" * 40)
+    print("Oluşturulan chunk sayısı:", len(chunks))
 
-    chunks = []
+    for chunk in chunks[:3]:
+        print("\n" + "=" * 80)
+        print(f"Chunk ID: {chunk['chunk_id']}")
+        print(f"Sentence Count: {chunk['sentence_count']}")
+        print(f"Character Count: {chunk['char_count']}")
+        print("-" * 80)
+        print(chunk["text"])
 
-    for text in paragraph_blocks:
-        words = text.split()
-        chunk_size = 100
+    chunk_texts = [chunk["text"] for chunk in chunks]
 
-        for i in range(0, len(words), chunk_size):
-            chunk = " ".join(words[i:i + chunk_size])
-            chunks.append(chunk)
+    if chunk_texts:
+        chunk_embeddings = generate_embeddings(chunk_texts)
+        vector_store.add_documents(chunks, chunk_embeddings)
 
-    print("Chunk sayısı:", len(chunks))
+    print("\nVECTOR STORE")
+    print("-" * 40)
+    print("Kayıtlı doküman sayısı:", len(vector_store.documents))
+
+    print("\nINGEST TAMAMLANDI")
+    print("=" * 80)
 
     return {
         "success": True,
@@ -66,5 +81,11 @@ def ingest(data: IngestRequest):
             "raw": len(data.blocks),
             "clean": len(clean_blocks)
         },
-        "chunks": len(chunks)
+        "chunks": {
+            "count": len(chunks),
+            "items": chunks
+        },
+        "vector_store": {
+            "stored_documents": len(vector_store.documents)
+        }
     }

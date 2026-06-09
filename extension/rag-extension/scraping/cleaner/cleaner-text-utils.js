@@ -20,35 +20,6 @@ function cleanArray(items = [], minLength = 1) {
     .filter((item) => item && item.length >= minLength);
 }
 
-function chunkText(text, chunkSize = 500) {
-  if (!text) {
-    return [];
-  }
-
-  const words = cleanText(text).split(" ");
-  const chunks = [];
-  let currentChunk = "";
-
-  for (const word of words) {
-    const candidate = currentChunk ? `${currentChunk} ${word}` : word;
-
-    if (candidate.length > chunkSize) {
-      if (currentChunk) {
-        chunks.push(currentChunk.trim());
-      }
-      currentChunk = word;
-    } else {
-      currentChunk = candidate;
-    }
-  }
-
-  if (currentChunk.trim()) {
-    chunks.push(currentChunk.trim());
-  }
-
-  return chunks;
-}
-
 function countMatches(text, regex) {
   if (!text) {
     return 0;

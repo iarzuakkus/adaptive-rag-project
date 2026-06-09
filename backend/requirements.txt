@@ -1,3 +1,7 @@
 fastapi
 uvicorn
 pydantic
+sentence-transformers
+numpy
+scikit-learn
+faiss-cpu
