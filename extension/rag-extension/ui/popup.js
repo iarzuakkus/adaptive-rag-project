@@ -1,296 +1,121 @@
-import { sendPageData } from "../core/api.js";
+const startResearchBtn = document.getElementById("startResearchBtn");
+const closeWidgetBtn = document.getElementById("closeWidgetBtn");
+const widgetStatus = document.getElementById("widgetStatus");
 
-document.addEventListener("DOMContentLoaded", () => {
-  console.log("[POPUP] Popup hazır.");
-
-  const tabButtons = document.querySelectorAll(".tab-btn");
-  const chatPanel = document.getElementById("chatPanel");
-  const scrapePanel = document.getElementById("scrapePanel");
-
-  const scrapeBtn = document.getElementById("scrapeBtn");
-  const scrapeStatus = document.getElementById("scrapeStatus");
-  const resultBox = document.getElementById("resultBox");
-  const resultTitle = document.getElementById("resultTitle");
-  const resultUrl = document.getElementById("resultUrl");
-  const resultChunkCount = document.getElementById("resultChunkCount");
-  const resultPreview = document.getElementById("resultPreview");
-  const resultChunks = document.getElementById("resultChunks");
-
-  tabButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      tabButtons.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-
-      const selectedTab = btn.dataset.tab;
-
-      if (selectedTab === "chat") {
-        chatPanel.classList.remove("hidden");
-        scrapePanel.classList.add("hidden");
-      } else {
-        scrapePanel.classList.remove("hidden");
-        chatPanel.classList.add("hidden");
-      }
-    });
+async function getActiveTab() {
+  const tabs = await chrome.tabs.query({
+    active: true,
+    currentWindow: true
   });
 
-  if (!scrapeBtn) {
-    console.error("[POPUP] scrapeBtn bulunamadı.");
+  return tabs[0];
+}
+
+async function injectWidgetFiles(tabId) {
+  await chrome.scripting.insertCSS({
+    target: { tabId },
+    files: ["ui/widget/widget.css"]
+  });
+
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: [
+      "core/research-store.js",
+
+      "ui/widget/widget-state.js",
+
+      "ui/widget/render/widget-shell.js",
+      "ui/widget/render/chat-tab.js",
+      "ui/widget/render/sources-tab.js",
+      "ui/widget/render/notes-tab.js",
+
+      "ui/widget/events/source-events.js",
+      "ui/widget/events/highlight-events.js",
+
+      "ui/widget/widget.js"
+    ]
+  });
+}
+
+async function startResearch() {
+  const activeTab = await getActiveTab();
+
+  if (!activeTab?.id) {
+    updateStatus("Sayfa bulunamadı", false);
     return;
   }
 
-  function isRestrictedUrl(url) {
-    if (!url) return true;
+  try {
+    updateStatus("Araştırma başlatılıyor...", true);
 
-    return (
-      url.startsWith("chrome://") ||
-      url.startsWith("chrome-extension://") ||
-      url.startsWith("devtools://") ||
-      url.startsWith("edge://") ||
-      url.startsWith("about:")
-    );
-  }
+    await injectWidgetFiles(activeTab.id);
 
-  function resetResultArea() {
-    if (resultBox) {
-      resultBox.classList.add("hidden");
-    }
-
-    if (resultChunks) {
-      resultChunks.innerHTML = "";
-    }
-
-    if (resultTitle) {
-      resultTitle.textContent = "-";
-    }
-
-    if (resultUrl) {
-      resultUrl.textContent = "-";
-    }
-
-    if (resultChunkCount) {
-      resultChunkCount.textContent = "0";
-    }
-
-    if (resultPreview) {
-      resultPreview.textContent = "-";
-    }
-  }
-
-  function escapeHtml(text) {
-    return String(text || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
-  function renderChunkItem(chunk, index) {
-    const chunkEl = document.createElement("div");
-    chunkEl.className = "chunk-item";
-
-    const type = chunk?.type || "unknown";
-    const content = escapeHtml(chunk?.text || chunk?.content || "-");
-    const tag = chunk?.tag ? ` | tag: ${escapeHtml(chunk.tag)}` : "";
-    const textLength =
-      typeof chunk?.textLength === "number"
-        ? ` | len: ${chunk.textLength}`
-        : "";
-    const linkDensity =
-      typeof chunk?.linkDensity === "number"
-        ? ` | linkDensity: ${chunk.linkDensity}`
-        : "";
-    const score =
-      typeof chunk?.score === "number"
-        ? ` | score: ${chunk.score}`
-        : "";
-
-    chunkEl.innerHTML = `
-      <div class="chunk-title">
-        Chunk ${index + 1} (${escapeHtml(type)}${tag}${textLength}${linkDensity}${score})
-      </div>
-      <div class="chunk-text">${content}</div>
-    `;
-
-    return chunkEl;
-  }
-
-  function buildPreviewFromBlocks(blocks) {
-    if (!Array.isArray(blocks) || blocks.length === 0) {
-      return "";
-    }
-
-    return blocks
-      .slice(0, 3)
-      .map((block, index) => {
-        const tag = block?.tag ? `[${block.tag}] ` : "";
-        const score =
-          typeof block?.score === "number" ? ` (score: ${block.score})` : "";
-        const text = block?.text || "-";
-
-        return `${index + 1}. ${tag}${text}${score}`;
-      })
-      .join("\n\n---\n\n");
-  }
-
-  function renderResult(data) {
-    const chunks = Array.isArray(data?.chunks) ? data.chunks : [];
-    const blockChunks = Array.isArray(data?.blockChunks) ? data.blockChunks : [];
-    const allChunks = Array.isArray(data?.allChunks) ? data.allChunks : [];
-    const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
-    const topBlocks = Array.isArray(data?.topBlocks) ? data.topBlocks : [];
-
-    const preferredChunks =
-      allChunks.length > 0
-        ? allChunks
-        : blockChunks.length > 0
-          ? blockChunks
-          : chunks;
-
-    const blockChunkCount =
-      typeof data?.blockChunkCount === "number"
-        ? data.blockChunkCount
-        : blockChunks.length;
-
-    const structuredChunkCount =
-      typeof data?.chunkCount === "number"
-        ? data.chunkCount
-        : chunks.length;
-
-    const allChunkCount =
-      typeof data?.allChunkCount === "number"
-        ? data.allChunkCount
-        : allChunks.length;
-
-    scrapeStatus.textContent = "Sayfa başarıyla tarandı.";
-
-    if (resultBox) {
-      resultBox.classList.remove("hidden");
-    }
-
-    if (resultTitle) {
-      resultTitle.textContent = data?.title || "-";
-    }
-
-    if (resultUrl) {
-      resultUrl.textContent = data?.url || "-";
-    }
-
-    if (resultChunkCount) {
-      if (allChunkCount > 0) {
-        resultChunkCount.textContent =
-          `All Chunk: ${allChunkCount} | Block Chunk: ${blockChunkCount} | Structured Chunk: ${structuredChunkCount}`;
-      } else {
-        resultChunkCount.textContent =
-          `Block Chunk: ${blockChunkCount} | Structured Chunk: ${structuredChunkCount}`;
-      }
-    }
-
-    const previewFromBlocks = buildPreviewFromBlocks(
-      topBlocks.length > 0 ? topBlocks : blocks
-    );
-
-    if (resultPreview) {
-      if (previewFromBlocks) {
-        resultPreview.textContent = previewFromBlocks;
-      } else if (data?.preview) {
-        resultPreview.textContent = data.preview;
-      } else {
-        resultPreview.textContent = "-";
-      }
-    }
-
-    if (resultChunks) {
-      resultChunks.innerHTML = "";
-
-      if (preferredChunks.length === 0) {
-        resultChunks.innerHTML =
-          `<div class="chunk-item">Chunk bulunamadı.</div>`;
-        return;
-      }
-
-      const shownChunks = preferredChunks.slice(0, 5);
-
-      shownChunks.forEach((chunk, index) => {
-        const chunkEl = renderChunkItem(chunk, index);
-        resultChunks.appendChild(chunkEl);
-      });
-    }
-
-    if (topBlocks.length > 0) {
-      console.log("[POPUP] Top blocks:", topBlocks);
-    }
-
-    console.log("[POPUP] Final rendered data:", data);
-  }
-
-  scrapeBtn.addEventListener("click", () => {
-    scrapeStatus.textContent = "Sayfa taranıyor...";
-    resetResultArea();
-
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      console.log("[POPUP] Bulunan sekmeler:", tabs);
-
-      if (!tabs || tabs.length === 0) {
-        scrapeStatus.textContent = "Aktif sekme bulunamadı.";
-        return;
-      }
-
-      const activeTab = tabs[0];
-      console.log("[POPUP] Aktif tab:", activeTab);
-
-      if (!activeTab?.id) {
-        scrapeStatus.textContent = "Aktif sekme ID bilgisi alınamadı.";
-        return;
-      }
-
-      if (isRestrictedUrl(activeTab.url)) {
-        scrapeStatus.textContent =
-          "Bu sayfa taranamaz. Normal bir web sayfası açıp tekrar dene.";
-        return;
-      }
-
-      chrome.tabs.sendMessage(
-        activeTab.id,
-        { type: "SCRAPE_PAGE" },
-        async (response) => {
-          if (chrome.runtime.lastError) {
-            console.error("[POPUP] Hata:", chrome.runtime.lastError.message);
-            scrapeStatus.textContent =
-              "Content script ile bağlantı kurulamadı. Sayfayı yenileyip tekrar dene.";
-            return;
-          }
-
-          console.log("[POPUP] Response:", response);
-
-          if (!response || !response.success) {
-            scrapeStatus.textContent =
-              response?.message || "Veri alınamadı.";
-            return;
-          }
-
-          const pageData = response.data || {};
-
-          scrapeStatus.textContent = "Backend'e gönderiliyor...";
-
-          const backendResult = await sendPageData(pageData);
-
-          console.log("[POPUP] Backend sonucu:", backendResult);
-
-          if (!backendResult || backendResult.success === false) {
-            scrapeStatus.textContent =
-              backendResult?.message || "Backend'e veri gönderilemedi.";
-            return;
-          }
-
-          renderResult({
-            ...pageData,
-            ...backendResult
-          });
-
-          scrapeStatus.textContent = "Veri backend'e gönderildi.";
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: activeTab.id },
+      func: () => {
+        if (window.startAdaptiveRagResearch) {
+          return window.startAdaptiveRagResearch();
         }
-      );
+
+        return false;
+      }
     });
-  });
-});
+
+    if (result?.result) {
+      updateStatus("Araştırma başladı", true);
+    } else {
+      updateStatus("Widget başlatılamadı", false);
+    }
+  } catch (error) {
+    console.error("Araştırma başlatma hatası:", error);
+    updateStatus("Başlatılamadı", false);
+  }
+}
+
+async function closeWidget() {
+  const activeTab = await getActiveTab();
+
+  if (!activeTab?.id) {
+    updateStatus("Sayfa bulunamadı", false);
+    return;
+  }
+
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: activeTab.id },
+      func: () => {
+        if (window.closeAdaptiveRagWidget) {
+          return window.closeAdaptiveRagWidget();
+        }
+
+        const widget = document.querySelector("#adaptive-rag-widget");
+
+        if (widget) {
+          widget.remove();
+          return true;
+        }
+
+        return false;
+      }
+    });
+
+    if (result?.result) {
+      updateStatus("Widget kapatıldı", false);
+    } else {
+      updateStatus("Widget zaten kapalı", false);
+    }
+  } catch (error) {
+    console.error("Widget kapatma hatası:", error);
+    updateStatus("Kapatılamadı", false);
+  }
+}
+
+function updateStatus(text, active) {
+  if (!widgetStatus) return;
+
+  widgetStatus.textContent = text;
+  widgetStatus.classList.toggle("active", active);
+}
+
+startResearchBtn?.addEventListener("click", startResearch);
+closeWidgetBtn?.addEventListener("click", closeWidget);
