@@ -1,0 +1,22 @@
+.rag-chat-input {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 10px;
+  border-radius: var(--rag-radius-md);
+  border: 1px solid var(--rag-color-border);
+}
+
+.rag-chat-input input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: var(--rag-color-text);
+  background: transparent;
+}
+
+.rag-chat-input input::placeholder {
+  color: var(--rag-color-text-muted);
+}

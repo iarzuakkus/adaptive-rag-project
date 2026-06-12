@@ -1,10 +1,22 @@
 (function () {
   function renderWidgetShell() {
+    const logoUrl = chrome.runtime.getURL("assets/logo.svg");
+
     return `
       <div class="rag-widget-header">
-        <div>
-          <h2>Adaptive RAG</h2>
-          <span>Kişisel araştırma asistanı</span>
+        <div class="rag-widget-brand">
+          <div class="rag-widget-brand-logo">
+            <img
+              src="${logoUrl}"
+              alt="Adaptive RAG Logo"
+              class="rag-widget-brand-logo-image"
+            />
+          </div>
+
+          <div class="rag-widget-brand-text">
+            <h2>Adaptive RAG</h2>
+            <span>Kişisel araştırma asistanı</span>
+          </div>
         </div>
 
         <button class="rag-widget-close" id="ragWidgetClose">×</button>

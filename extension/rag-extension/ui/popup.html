@@ -10,43 +10,26 @@
 </head>
 
 <body>
-  <div id="app" class="app-shell">
-    <div class="panel popup-control-panel">
-      <div class="header">
-        <div class="brand">
-          <div class="logo-box">
-            <span class="logo-mark">R</span>
-          </div>
-
-          <div class="brand-text">
-            <h1 class="brand-title">Adaptive RAG</h1>
-            <p class="brand-subtitle">Araştırma kontrol paneli</p>
-          </div>
-        </div>
+  <div class="mini-popup">
+    <div class="mini-popup-info">
+      <div class="mini-logo">
+        <img
+          src="../assets/logo.svg"
+          alt="Adaptive RAG Logo"
+          class="mini-logo-image"
+        />
       </div>
 
-      <div class="popup-status-card">
-        <h2>Araştırma modu</h2>
-
-        <p>
-          Araştırmaya başladığında widget açılır ve mevcut sayfa taranarak kaynaklara eklenir.
-        </p>
-
-        <div class="status-pill" id="widgetStatus">
-          Hazır
-        </div>
-      </div>
-
-      <div class="popup-action-group">
-        <button type="button" class="primary-btn full-btn" id="startResearchBtn">
-          Araştırmaya Başla
-        </button>
-
-        <button type="button" class="secondary-btn full-btn" id="closeWidgetBtn">
-          Widget’ı Kapat
-        </button>
+      <div>
+        <h1>Adaptive RAG</h1>
+        <p>Baloncuk</p>
       </div>
     </div>
+
+    <label class="switch">
+      <input type="checkbox" id="widgetToggle" />
+      <span class="slider"></span>
+    </label>
   </div>
 
   <script type="module" src="./popup.js"></script>

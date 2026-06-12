@@ -16,7 +16,15 @@
   ],
   "action": {
     "default_popup": "ui/popup.html",
-    "default_title": "Adaptive RAG"
+    "default_title": "Adaptive RAG",
+    "default_icon": {
+      "64": "assets/logo64.png",
+      "128": "assets/logo128.png"
+    }
+  },
+  "icons": {
+    "64": "assets/logo64.png",
+    "128": "assets/logo128.png"
   },
   "background": {
     "service_worker": "core/background.js"
@@ -24,7 +32,9 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "assets/logo.svg"
+        "assets/logo.svg",
+        "assets/logo64.png",
+        "assets/logo128.png"
       ],
       "matches": [
         "<all_urls>"
@@ -47,15 +57,12 @@
         "scraping/cleaner/cleaner-scoring.js",
         "scraping/cleaner/cleaner-blocks.js",
         "scraping/cleaner/cleaner-page.js",
+
         "scraping/cleaner/cleaner-entry.js",
 
         "scraping/content.js",
 
-        "core/session-store.js",
-        "ui/widget/widget.js"
-      ],
-      "css": [
-        "ui/widget/widget.css"
+        "core/session-store.js"
       ],
       "run_at": "document_idle"
     }

@@ -1,0 +1,29 @@
+.rag-notes-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rag-note-card div {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.rag-note-card span {
+  color: var(--rag-color-text-muted);
+}
+
+.rag-note-card a {
+  color: var(--rag-color-secondary);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.rag-recommendation-card h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--rag-color-text);
+}

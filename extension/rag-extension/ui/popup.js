@@ -1,6 +1,4 @@
-const startResearchBtn = document.getElementById("startResearchBtn");
-const closeWidgetBtn = document.getElementById("closeWidgetBtn");
-const widgetStatus = document.getElementById("widgetStatus");
+const widgetToggle = document.getElementById("widgetToggle");
 
 async function getActiveTab() {
   const tabs = await chrome.tabs.query({
@@ -14,7 +12,17 @@ async function getActiveTab() {
 async function injectWidgetFiles(tabId) {
   await chrome.scripting.insertCSS({
     target: { tabId },
-    files: ["ui/widget/widget.css"]
+    files: [
+      "ui/widget/styles/widget-variables.css",
+      "ui/widget/styles/widget-launcher.css",
+      "ui/widget/styles/widget-layout.css",
+      "ui/widget/styles/widget-tabs.css",
+      "ui/widget/styles/widget-cards.css",
+      "ui/widget/styles/widget-chat.css",
+      "ui/widget/styles/widget-sources.css",
+      "ui/widget/styles/widget-notes.css",
+      "ui/widget/styles/widget-effects.css"
+    ]
   });
 
   await chrome.scripting.executeScript({
@@ -37,85 +45,78 @@ async function injectWidgetFiles(tabId) {
   });
 }
 
-async function startResearch() {
+async function checkBubbleStatus() {
   const activeTab = await getActiveTab();
 
   if (!activeTab?.id) {
-    updateStatus("Sayfa bulunamadı", false);
+    widgetToggle.checked = false;
     return;
   }
 
   try {
-    updateStatus("Araştırma başlatılıyor...", true);
-
-    await injectWidgetFiles(activeTab.id);
-
     const [result] = await chrome.scripting.executeScript({
       target: { tabId: activeTab.id },
       func: () => {
-        if (window.startAdaptiveRagResearch) {
-          return window.startAdaptiveRagResearch();
-        }
-
-        return false;
+        return Boolean(document.querySelector("#adaptive-rag-launcher"));
       }
     });
 
-    if (result?.result) {
-      updateStatus("Araştırma başladı", true);
-    } else {
-      updateStatus("Widget başlatılamadı", false);
-    }
+    widgetToggle.checked = Boolean(result?.result);
   } catch (error) {
-    console.error("Araştırma başlatma hatası:", error);
-    updateStatus("Başlatılamadı", false);
+    console.error("Baloncuk durumu kontrol edilemedi:", error);
+    widgetToggle.checked = false;
   }
 }
 
-async function closeWidget() {
+async function toggleBubble() {
   const activeTab = await getActiveTab();
 
   if (!activeTab?.id) {
-    updateStatus("Sayfa bulunamadı", false);
+    widgetToggle.checked = false;
     return;
   }
 
   try {
-    const [result] = await chrome.scripting.executeScript({
-      target: { tabId: activeTab.id },
-      func: () => {
-        if (window.closeAdaptiveRagWidget) {
-          return window.closeAdaptiveRagWidget();
+    if (widgetToggle.checked) {
+      await injectWidgetFiles(activeTab.id);
+
+      const [result] = await chrome.scripting.executeScript({
+        target: { tabId: activeTab.id },
+        func: () => {
+          if (window.showAdaptiveRagBubble) {
+            return window.showAdaptiveRagBubble();
+          }
+
+          console.error("showAdaptiveRagBubble bulunamadı.");
+          return false;
         }
+      });
 
-        const widget = document.querySelector("#adaptive-rag-widget");
+      widgetToggle.checked = Boolean(result?.result);
+    } else {
+      await chrome.scripting.executeScript({
+        target: { tabId: activeTab.id },
+        func: () => {
+          if (window.hideAdaptiveRagBubble) {
+            return window.hideAdaptiveRagBubble();
+          }
 
-        if (widget) {
-          widget.remove();
+          document.querySelector("#adaptive-rag-launcher")?.remove();
+          document.querySelector("#adaptive-rag-widget")?.remove();
+
           return true;
         }
+      });
 
-        return false;
-      }
-    });
-
-    if (result?.result) {
-      updateStatus("Widget kapatıldı", false);
-    } else {
-      updateStatus("Widget zaten kapalı", false);
+      widgetToggle.checked = false;
     }
   } catch (error) {
-    console.error("Widget kapatma hatası:", error);
-    updateStatus("Kapatılamadı", false);
+    console.error("Baloncuk kontrol hatası:", error);
+    alert("Baloncuk açılamadı. Console hatasını kontrol et.");
+    widgetToggle.checked = false;
   }
 }
 
-function updateStatus(text, active) {
-  if (!widgetStatus) return;
+widgetToggle?.addEventListener("change", toggleBubble);
 
-  widgetStatus.textContent = text;
-  widgetStatus.classList.toggle("active", active);
-}
-
-startResearchBtn?.addEventListener("click", startResearch);
-closeWidgetBtn?.addEventListener("click", closeWidget);
+checkBubbleStatus();

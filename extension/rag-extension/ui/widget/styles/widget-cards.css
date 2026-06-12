@@ -1,0 +1,78 @@
+.rag-chat-placeholder,
+.rag-answer-card,
+.rag-summary-box,
+.rag-source-card,
+.rag-note-card,
+.rag-recommendation-card,
+.rag-timeline,
+.rag-empty-state {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--rag-radius-lg);
+  padding: 14px;
+  border: 1px solid var(--rag-color-border);
+  box-shadow: var(--rag-shadow-card);
+}
+
+.rag-chat-placeholder h3,
+.rag-summary-box h3,
+.rag-timeline h3,
+.rag-notes-block h3,
+.rag-empty-state h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--rag-color-text);
+}
+
+.rag-chat-placeholder p,
+.rag-answer-card p,
+.rag-summary-box p,
+.rag-note-card p,
+.rag-recommendation-card p,
+.rag-source-main p,
+.rag-chunk-card p,
+.rag-empty-state p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--rag-color-text-muted);
+}
+
+.rag-small-label {
+  display: inline-block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--rag-color-primary);
+}
+
+.rag-answer-actions,
+.rag-export-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.rag-answer-actions button,
+.rag-export-actions button,
+.rag-chat-input button,
+.rag-section-title button,
+.rag-chunk-card button {
+  border: none;
+  border-radius: 999px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--rag-gradient-main);
+  box-shadow: var(--rag-shadow-main);
+  cursor: pointer;
+}
+
+.rag-answer-actions button:hover,
+.rag-export-actions button:hover,
+.rag-chat-input button:hover,
+.rag-section-title button:hover,
+.rag-chunk-card button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}

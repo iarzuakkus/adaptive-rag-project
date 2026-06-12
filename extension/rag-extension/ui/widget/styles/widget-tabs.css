@@ -1,0 +1,28 @@
+.rag-widget-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.rag-tab {
+  border: 1px solid var(--rag-color-border);
+  border-radius: 999px;
+  padding: 10px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--rag-color-text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.rag-tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.rag-tab.active {
+  color: #ffffff;
+  background: var(--rag-gradient-main);
+  box-shadow: var(--rag-shadow-main);
+}

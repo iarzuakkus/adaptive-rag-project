@@ -1,0 +1,34 @@
+.rag-launcher {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 62px;
+  height: 62px;
+  border: none;
+  border-radius: 50%;
+  background: var(--rag-gradient-main);
+  color: #ffffff;
+  z-index: 999998;
+  box-shadow: var(--rag-shadow-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Inter, Arial, sans-serif;
+  transition: 0.2s ease;
+  overflow: hidden;
+  padding: 0;
+}
+
+.rag-launcher-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+.rag-launcher:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.04);
+}

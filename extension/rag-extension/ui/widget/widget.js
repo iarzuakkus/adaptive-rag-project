@@ -1,4 +1,40 @@
 (function () {
+  function createLauncher() {
+    const existingLauncher = document.querySelector("#adaptive-rag-launcher");
+
+    if (existingLauncher) {
+      return;
+    }
+
+    const logoUrl = chrome.runtime.getURL("assets/logo.svg");
+
+    const launcher = document.createElement("button");
+    launcher.id = "adaptive-rag-launcher";
+    launcher.className = "rag-launcher";
+    launcher.type = "button";
+
+    launcher.innerHTML = `
+      <img
+        src="${logoUrl}"
+        alt="Adaptive RAG Logo"
+        class="rag-launcher-logo"
+      />
+    `;
+
+    document.body.appendChild(launcher);
+
+    launcher.addEventListener("click", () => {
+      const existingWidget = document.querySelector("#adaptive-rag-widget");
+
+      if (existingWidget) {
+        existingWidget.remove();
+        return;
+      }
+
+      createWidget();
+    });
+  }
+
   function createWidget() {
     const existingWidget = document.querySelector("#adaptive-rag-widget");
 
@@ -66,24 +102,26 @@
     }
   }
 
-  window.AdaptiveRagWidget = {
-    createWidget,
-    renderActiveTab
+  window.showAdaptiveRagBubble = function () {
+    createLauncher();
+    return true;
   };
 
-  window.startAdaptiveRagResearch = function () {
-    createWidget();
+  window.hideAdaptiveRagBubble = function () {
+    document.querySelector("#adaptive-rag-launcher")?.remove();
+    document.querySelector("#adaptive-rag-widget")?.remove();
+
     return true;
   };
 
   window.closeAdaptiveRagWidget = function () {
-    const existingWidget = document.querySelector("#adaptive-rag-widget");
+    document.querySelector("#adaptive-rag-widget")?.remove();
+    return true;
+  };
 
-    if (existingWidget) {
-      existingWidget.remove();
-      return true;
-    }
-
-    return false;
+  window.AdaptiveRagWidget = {
+    createLauncher,
+    createWidget,
+    renderActiveTab
   };
 })();

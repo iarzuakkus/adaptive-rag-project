@@ -1,0 +1,5 @@
+.rag-highlighted-source {
+  outline: 3px solid var(--rag-color-primary) !important;
+  background: rgba(238, 167, 255, 0.25) !important;
+  transition: background 0.3s ease, outline 0.3s ease;
+}
