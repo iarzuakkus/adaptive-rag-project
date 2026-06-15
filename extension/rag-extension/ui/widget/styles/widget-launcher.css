@@ -2,33 +2,68 @@
   position: fixed;
   right: 24px;
   bottom: 24px;
-  width: 62px;
-  height: 62px;
+  width: var(--rag-launcher-size);
+  height: var(--rag-launcher-size);
   border: none;
   border-radius: 50%;
   background: var(--rag-gradient-main);
   color: #ffffff;
-  z-index: 999998;
-  box-shadow: var(--rag-shadow-main);
+  z-index: 2147483646;
+  box-shadow: var(--rag-shadow-main), var(--rag-shadow-glow);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: Inter, Arial, sans-serif;
-  transition: 0.2s ease;
+  font-family: var(--rag-font-family);
+  transition:
+    transform var(--rag-transition-normal),
+    filter var(--rag-transition-normal),
+    box-shadow var(--rag-transition-normal);
   overflow: hidden;
-  padding: 0;
+  padding: 5px;
+}
+
+.rag-launcher::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.32), transparent 34%),
+    var(--rag-gradient-main);
+  opacity: 1;
+  z-index: 0;
 }
 
 .rag-launcher-logo {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 50%;
   display: block;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 7px;
 }
 
 .rag-launcher:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.04);
+  transform: translateY(-3px) scale(1.03);
+  filter: brightness(1.06);
+  box-shadow:
+    0 16px 42px rgba(255, 0, 31, 0.34),
+    0 0 38px rgba(238, 167, 255, 0.28);
+}
+
+.rag-launcher:active {
+  transform: translateY(-1px) scale(0.98);
+}
+
+@media (max-width: 540px) {
+  .rag-launcher {
+    right: 14px;
+    bottom: 14px;
+    width: 56px;
+    height: 56px;
+  }
 }

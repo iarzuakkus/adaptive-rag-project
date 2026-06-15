@@ -1,29 +1,38 @@
+/*
+  Dosya: styles.css
+
+  Görev:
+  - Chrome extension popup arayüzünü yönetir.
+  - Baloncuk aç/kapat alanını ve tarama modu seçimini tasarlar.
+  - Siyah zemin, beyaz yazı ve pembe-kırmızı vurgu temasını daha sade şekilde uygular.
+
+  Not:
+  - Tarama modu seçimi popup içinde kompakt bir ayar paneli olarak gösterilir.
+  - Elle/Otomatik seçimleri büyük buton gibi değil, segment kontrol gibi tasarlanır.
+*/
+
 :root {
   --color-primary: #ff001f;
   --color-secondary: #eea7ff;
-  --color-bg: #0d0d12;
-  --color-surface: #151520;
-  --color-surface-soft: #1c1c29;
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-text: #f5f5f7;
-  --color-text-muted: #b8b8c7;
-  --color-success: #7dffb3;
-  --color-danger: #ff6b81;
+
+  --color-bg: #07070b;
+  --color-surface: #111119;
+  --color-surface-soft: #181822;
+
+  --color-border: rgba(238, 167, 255, 0.16);
+  --color-border-strong: rgba(238, 167, 255, 0.28);
+
+  --color-text: #ffffff;
+  --color-text-muted: rgba(255, 255, 255, 0.66);
 
   --gradient-main: linear-gradient(135deg, #ff001f 0%, #eea7ff 100%);
-  --gradient-soft: linear-gradient(
-    135deg,
-    rgba(255, 0, 31, 0.15) 0%,
-    rgba(238, 167, 255, 0.15) 100%
-  );
 
-  --shadow-main: 0 10px 30px rgba(255, 0, 31, 0.18);
+  --popup-width: 320px;
+
+  --radius-xl: 22px;
   --radius-lg: 18px;
   --radius-md: 14px;
   --radius-sm: 10px;
-
-  --popup-width: 240px;
-  --popup-height: 92px;
 }
 
 * {
@@ -35,44 +44,60 @@ body {
   margin: 0;
   padding: 0;
   width: var(--popup-width);
-  min-height: var(--popup-height);
-  background: var(--color-bg);
+  min-height: 178px;
+  background: #07070b;
   color: var(--color-text);
   overflow: hidden;
   font-family: Inter, Arial, sans-serif;
 }
 
-body {
-  display: block;
-}
-
+/* Popup ana kartı */
 .mini-popup {
   width: var(--popup-width);
-  min-height: var(--popup-height);
+  min-height: 178px;
   padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 31, 0.18), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.16), transparent 38%),
+    linear-gradient(145deg, #07070b 0%, #111119 58%, #07070b 100%);
+  border: 1px solid rgba(238, 167, 255, 0.18);
+  border-radius: 0;
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.46),
+    0 0 22px rgba(255, 0, 31, 0.10),
+    0 0 26px rgba(238, 167, 255, 0.08);
+  overflow: hidden;
+}
+
+/* Üst satır: logo, başlık ve switch */
+.mini-popup-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  background:
-    radial-gradient(circle at top left, rgba(255, 0, 31, 0.18), transparent 38%),
-    radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.2), transparent 38%),
-    var(--color-bg);
 }
 
+/* Logo ve başlık alanı */
 .mini-popup-info {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   min-width: 0;
 }
 
+/* Daha küçük ve sade logo kabı */
 .mini-logo {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: var(--gradient-main);
-  box-shadow: var(--shadow-main);
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(255, 0, 31, 0.92), rgba(238, 167, 255, 0.92));
+  box-shadow:
+    0 0 14px rgba(255, 0, 31, 0.24),
+    0 0 18px rgba(238, 167, 255, 0.14);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -80,33 +105,36 @@ body {
   flex-shrink: 0;
 }
 
+/* Logo görseli */
 .mini-logo-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 50%;
   display: block;
 }
 
+/* Popup ana başlığı */
 .mini-popup h1 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-text);
-  line-height: 1.2;
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.15;
+  color: #ffffff;
+  letter-spacing: -0.2px;
   white-space: nowrap;
 }
 
+/* Popup açıklama yazısı */
 .mini-popup p {
   margin: 4px 0 0;
   font-size: 12px;
   color: var(--color-text-muted);
-  white-space: nowrap;
 }
 
+/* Baloncuk switch alanı */
 .switch {
   position: relative;
-  width: 50px;
+  width: 48px;
   height: 28px;
   flex-shrink: 0;
 }
@@ -115,16 +143,18 @@ body {
   display: none;
 }
 
+/* Switch arka kanalı */
 .slider {
   position: absolute;
   inset: 0;
   cursor: pointer;
   border-radius: 999px;
-  background: var(--color-surface-soft);
-  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(238, 167, 255, 0.14);
   transition: 0.25s ease;
 }
 
+/* Switch hareketli yuvarlağı */
 .slider::before {
   content: "";
   position: absolute;
@@ -133,18 +163,103 @@ body {
   left: 3px;
   top: 2px;
   border-radius: 50%;
-  background: var(--color-text-muted);
+  background: rgba(255, 255, 255, 0.76);
   transition: 0.25s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.34);
 }
 
+/* Switch açık durumu */
 .switch input:checked + .slider {
   background: var(--gradient-main);
-  border-color: rgba(238, 167, 255, 0.35);
-  box-shadow: var(--shadow-main);
+  border-color: rgba(238, 167, 255, 0.34);
+  box-shadow:
+    0 0 16px rgba(255, 0, 31, 0.20),
+    0 0 18px rgba(238, 167, 255, 0.12);
 }
 
 .switch input:checked + .slider::before {
-  transform: translateX(21px);
+  transform: translateX(20px);
   background: #ffffff;
+}
+
+/* Tarama modu paneli */
+.scan-mode-panel {
+  padding: 12px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
+    rgba(10, 10, 15, 0.82);
+  border: 1px solid rgba(238, 167, 255, 0.14);
+}
+
+/* Tarama modu başlık alanı */
+.scan-mode-header h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 850;
+  color: #ffffff;
+  letter-spacing: -0.1px;
+}
+
+.scan-mode-header p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.58);
+  white-space: normal;
+}
+
+/* Elle/Otomatik seçim alanı */
+.scan-mode-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(238, 167, 255, 0.12);
+}
+
+/* Tarama modu seçenekleri */
+.scan-mode-btn {
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+/* Tarama modu hover */
+.scan-mode-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Aktif tarama modu */
+.scan-mode-btn.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #ff001f 0%, #eea7ff 100%);
+  box-shadow:
+    0 8px 18px rgba(255, 0, 31, 0.18),
+    0 0 14px rgba(238, 167, 255, 0.12);
+}
+
+/* Tarama modu açıklama yazısı */
+.mini-popup .scan-mode-status {
+  margin: 9px 2px 0;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.58);
+  white-space: normal;
+  overflow: visible;
 }

@@ -1,78 +1,250 @@
-.rag-chat-placeholder,
+/*
+  Dosya: widget-cards.css
+
+  Görev:
+  - Widget içindeki ortak kart, boş durum, küçük bilgi kutusu ve genel panel tasarımlarını yönetir.
+  - Kaynaklar, Notlar ve Chat sekmelerinde tekrar kullanılan ortak stiller burada tutulur.
+
+  Not:
+  - Chat özel stilleri widget-chat.css içinde.
+  - Kaynaklar özel stilleri widget-sources.css içinde.
+  - Notlar özel stilleri widget-notes.css içinde.
+*/
+
+/* Ortak kart görünümü */
 .rag-answer-card,
 .rag-summary-box,
 .rag-source-card,
+.rag-note-panel,
 .rag-note-card,
 .rag-recommendation-card,
-.rag-timeline,
-.rag-empty-state {
-  background: rgba(255, 255, 255, 0.04);
+.rag-timeline-box,
+.rag-empty-state,
+.rag-mini-empty,
+.rag-quote-card,
+.rag-chunk-card,
+.rag-recommendation-item {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.035);
   border-radius: var(--rag-radius-lg);
-  padding: 14px;
   border: 1px solid var(--rag-color-border);
   box-shadow: var(--rag-shadow-card);
 }
 
-.rag-chat-placeholder h3,
-.rag-summary-box h3,
-.rag-timeline h3,
-.rag-notes-block h3,
-.rag-empty-state h3 {
-  margin: 0 0 8px;
+/* Büyük kart iç boşlukları */
+.rag-answer-card,
+.rag-summary-box,
+.rag-source-card,
+.rag-note-panel,
+.rag-note-card,
+.rag-recommendation-card,
+.rag-timeline-box,
+.rag-empty-state {
+  padding: 14px;
+}
+
+/* Küçük kart iç boşlukları */
+.rag-mini-empty,
+.rag-quote-card,
+.rag-chunk-card,
+.rag-recommendation-item {
+  padding: 12px;
+}
+
+/* Boş durum kartı */
+.rag-empty-state {
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  text-align: center;
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 31, 0.16), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.14), transparent 36%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.rag-empty-state strong {
+  display: block;
+  margin: 0;
   font-size: 15px;
+  font-weight: 800;
   color: var(--rag-color-text);
 }
 
-.rag-chat-placeholder p,
-.rag-answer-card p,
-.rag-summary-box p,
-.rag-note-card p,
-.rag-recommendation-card p,
-.rag-source-main p,
-.rag-chunk-card p,
+.rag-empty-state span,
 .rag-empty-state p {
+  display: block;
+  max-width: 290px;
   margin: 0;
   font-size: 13px;
   line-height: 1.5;
   color: var(--rag-color-text-muted);
 }
 
+/* Küçük boş durum */
+.rag-mini-empty {
+  color: var(--rag-color-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+/* Genel başlıklar */
+.rag-answer-card h3,
+.rag-summary-box h3,
+.rag-timeline-box h3,
+.rag-note-panel h3,
+.rag-note-card h3,
+.rag-recommendation-card h3,
+.rag-empty-state h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--rag-color-text);
+  font-weight: 800;
+}
+
+/* Genel paragraflar */
+.rag-answer-card p,
+.rag-summary-box p,
+.rag-source-card p,
+.rag-note-panel p,
+.rag-note-card p,
+.rag-recommendation-card p,
+.rag-chunk-card p,
+.rag-quote-card p,
+.rag-recommendation-item p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--rag-color-text-muted);
+}
+
+/* Küçük etiket */
 .rag-small-label {
   display: inline-block;
   margin-bottom: 8px;
   font-size: 11px;
-  font-weight: 700;
-  color: var(--rag-color-primary);
+  font-weight: 800;
+  color: var(--rag-color-secondary);
+  letter-spacing: 0.2px;
 }
 
+/* Küçük açıklama metni */
+.rag-small-info {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--rag-color-text-soft);
+}
+
+/* Aksiyon grupları */
 .rag-answer-actions,
-.rag-export-actions {
+.rag-export-actions,
+.rag-source-actions,
+.rag-chunk-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-top: 12px;
+  flex-wrap: wrap;
 }
 
-.rag-answer-actions button,
-.rag-export-actions button,
-.rag-chat-input button,
-.rag-section-title button,
-.rag-chunk-card button {
-  border: none;
-  border-radius: 999px;
-  padding: 9px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #ffffff;
-  background: var(--rag-gradient-main);
-  box-shadow: var(--rag-shadow-main);
-  cursor: pointer;
+/* Kart hover hissi */
+.rag-source-card,
+.rag-note-panel,
+.rag-quote-card,
+.rag-chunk-card,
+.rag-recommendation-item,
+.rag-timeline-box {
+  transition:
+    border-color var(--rag-transition-normal),
+    background var(--rag-transition-normal),
+    transform var(--rag-transition-normal),
+    box-shadow var(--rag-transition-normal);
 }
 
-.rag-answer-actions button:hover,
-.rag-export-actions button:hover,
-.rag-chat-input button:hover,
-.rag-section-title button:hover,
-.rag-chunk-card button:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.04);
+.rag-source-card:hover,
+.rag-note-panel:hover,
+.rag-quote-card:hover,
+.rag-chunk-card:hover,
+.rag-recommendation-item:hover {
+  border-color: rgba(238, 167, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(238, 167, 255, 0.055), rgba(255, 0, 31, 0.025)),
+    rgba(255, 255, 255, 0.045);
+}
+
+/* Form alanları için ortak görünüm */
+.rag-note-textarea,
+.rag-chat-input {
+  width: 100%;
+  border: 1px solid rgba(238, 167, 255, 0.16);
+  border-radius: var(--rag-radius-md);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--rag-color-text);
+  font-family: var(--rag-font-family);
+  outline: none;
+  transition:
+    border-color var(--rag-transition-normal),
+    box-shadow var(--rag-transition-normal),
+    background var(--rag-transition-normal);
+}
+
+.rag-note-textarea:focus,
+.rag-chat-input:focus {
+  border-color: rgba(238, 167, 255, 0.46);
+  box-shadow: 0 0 0 3px rgba(238, 167, 255, 0.10);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.rag-note-textarea::placeholder,
+.rag-chat-input::placeholder {
+  color: var(--rag-color-text-soft);
+}
+
+/* Seçilemeyen disabled buton görünümü */
+.rag-export-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.3);
+}
+
+/* İnce ayırıcı çizgi */
+.rag-divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(238, 167, 255, 0.12);
+  margin: 12px 0;
+}
+
+/* Mobil uyum */
+@media (max-width: 540px) {
+  .rag-answer-card,
+  .rag-summary-box,
+  .rag-source-card,
+  .rag-note-panel,
+  .rag-note-card,
+  .rag-recommendation-card,
+  .rag-timeline-box,
+  .rag-empty-state {
+    padding: 12px;
+    border-radius: var(--rag-radius-md);
+  }
+
+  .rag-mini-empty,
+  .rag-quote-card,
+  .rag-chunk-card,
+  .rag-recommendation-item {
+    padding: 10px;
+    border-radius: var(--rag-radius-md);
+  }
+
+  .rag-empty-state {
+    min-height: 130px;
+  }
 }

@@ -15,7 +15,6 @@
     "http://localhost:8000/*"
   ],
   "action": {
-    "default_popup": "ui/popup.html",
     "default_title": "Adaptive RAG",
     "default_icon": {
       "64": "assets/logo64.png",
@@ -47,6 +46,10 @@
         "<all_urls>"
       ],
       "js": [
+        "core/session-store.js",
+        "core/scan-settings-store.js",
+        "core/research-store.js",
+
         "scraping/text-utils.js",
         "scraping/dom-cleaner.js",
         "scraping/block-utils.js",
@@ -57,12 +60,24 @@
         "scraping/cleaner/cleaner-scoring.js",
         "scraping/cleaner/cleaner-blocks.js",
         "scraping/cleaner/cleaner-page.js",
-
         "scraping/cleaner/cleaner-entry.js",
 
+        "scraping/page-scan-rules.js",
+        "scraping/scan-prompt.js",
         "scraping/content.js",
 
-        "core/session-store.js"
+        "ui/widget/widget.js"
+      ],
+      "css": [
+        "ui/widget/styles/widget-variables.css",
+        "ui/widget/styles/widget-launcher.css",
+        "ui/widget/styles/widget-layout.css",
+        "ui/widget/styles/widget-tabs.css",
+        "ui/widget/styles/widget-cards.css",
+        "ui/widget/styles/widget-chat.css",
+        "ui/widget/styles/widget-sources.css",
+        "ui/widget/styles/widget-notes.css",
+        "ui/widget/styles/widget-effects.css"
       ],
       "run_at": "document_idle"
     }

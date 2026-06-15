@@ -1,3 +1,18 @@
+<!--
+  Dosya: popup.html
+
+  Görev:
+  - Chrome extension popup arayüzünü oluşturur.
+  - Adaptive RAG baloncuğunu açıp kapatmak için switch gösterir.
+  - Kullanıcının sayfa tarama modunu seçmesini sağlar:
+    - Elle Tara: Sayfaya girince “Bu sayfayı tara?” kartı gösterilir.
+    - Otomatik Tara: Uygun sayfalar kullanıcıya sorulmadan taranır.
+
+  Bağlı olduğu dosyalar:
+  - popup.js
+  - styles.css
+-->
+
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -10,26 +25,60 @@
 </head>
 
 <body>
+  <!-- Popup ana kutusu -->
   <div class="mini-popup">
-    <div class="mini-popup-info">
-      <div class="mini-logo">
-        <img
-          src="../assets/logo.svg"
-          alt="Adaptive RAG Logo"
-          class="mini-logo-image"
-        />
+    <!-- Üst bölüm: logo, başlık ve baloncuk switch alanı -->
+    <div class="mini-popup-row">
+      <div class="mini-popup-info">
+        <div class="mini-logo">
+          <img
+            src="../assets/logo.svg"
+            alt="Adaptive RAG Logo"
+            class="mini-logo-image"
+          />
+        </div>
+
+        <div>
+          <h1>Adaptive RAG</h1>
+          <p>Baloncuk</p>
+        </div>
       </div>
 
-      <div>
-        <h1>Adaptive RAG</h1>
-        <p>Baloncuk</p>
-      </div>
+      <label class="switch" aria-label="Adaptive RAG baloncuğunu aç veya kapat">
+        <input type="checkbox" id="widgetToggle" />
+        <span class="slider"></span>
+      </label>
     </div>
 
-    <label class="switch">
-      <input type="checkbox" id="widgetToggle" />
-      <span class="slider"></span>
-    </label>
+    <!-- Tarama modu seçim alanı -->
+    <div class="scan-mode-panel">
+      <div class="scan-mode-header">
+        <h2>Tarama Modu</h2>
+        <p>Sayfaların nasıl taranacağını seç.</p>
+      </div>
+
+      <div class="scan-mode-actions">
+        <button
+          type="button"
+          class="scan-mode-btn active"
+          id="scanModeManual"
+        >
+          Elle Tara
+        </button>
+
+        <button
+          type="button"
+          class="scan-mode-btn"
+          id="scanModeAuto"
+        >
+          Otomatik Tara
+        </button>
+      </div>
+
+      <p class="scan-mode-status" id="scanModeStatus">
+        Elle tarama aktif. Sayfaya girince tarama kartı gösterilir.
+      </p>
+    </div>
   </div>
 
   <script type="module" src="./popup.js"></script>
