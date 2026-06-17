@@ -20,7 +20,7 @@
     filter var(--rag-transition-normal),
     box-shadow var(--rag-transition-normal);
   overflow: hidden;
-  padding: 5px;
+  padding: 0;
 }
 
 .rag-launcher::before {
@@ -43,8 +43,8 @@
   object-fit: contain;
   border-radius: 50%;
   display: block;
-  background: rgba(255, 255, 255, 0.92);
-  padding: 7px;
+  background: transparent;
+  padding: 0;
 }
 
 .rag-launcher:hover {

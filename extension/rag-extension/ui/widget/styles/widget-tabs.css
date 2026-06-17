@@ -3,8 +3,6 @@
 
   Görev:
   - Adaptive RAG widget içindeki Chat, Kaynaklar ve Notlar sekmelerinin görünümünü yönetir.
-  - Sekmelerin klasik buton gibi değil, tarayıcı sekmesi gibi görünmesini sağlar.
-  - Aktif sekme, pasif sekme, hover efekti ve sekme şeridi bu dosyada tasarlanır.
 */
 
 /* Sekmelerin bulunduğu üst şerit alanı */
@@ -12,13 +10,13 @@
   position: relative;
   display: flex;
   align-items: flex-end;
-  gap: 4px;
-  height: 58px;
-  padding: 10px 12px 0;
+  gap: 3px;
+  height: 46px;
+  padding: 7px 10px 0;
   background:
-    linear-gradient(180deg, rgba(255, 0, 31, 0.08), rgba(255, 255, 255, 0.015)),
+    linear-gradient(180deg, rgba(255, 0, 31, 0.07), rgba(255, 255, 255, 0.012)),
     rgba(5, 5, 8, 0.96);
-  border-bottom: 1px solid rgba(238, 167, 255, 0.18);
+  border-bottom: 1px solid rgba(238, 167, 255, 0.16);
   flex-shrink: 0;
 }
 
@@ -26,11 +24,11 @@
 .rag-tabs::before {
   content: "";
   position: absolute;
-  left: 12px;
-  right: 12px;
+  left: 10px;
+  right: 10px;
   bottom: 0;
   height: 1px;
-  background: rgba(238, 167, 255, 0.18);
+  background: rgba(238, 167, 255, 0.16);
   z-index: 1;
 }
 
@@ -38,16 +36,16 @@
 .rag-tab {
   position: relative;
   flex: 1;
-  height: 44px;
-  border: 1px solid rgba(238, 167, 255, 0.16);
+  height: 36px;
+  border: 1px solid rgba(238, 167, 255, 0.14);
   border-bottom: none;
-  border-radius: 16px 16px 0 0;
-  padding: 0 10px;
-  font-size: 13px;
-  font-weight: 800;
+  border-radius: 13px 13px 0 0;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 750;
   color: rgba(255, 255, 255, 0.62);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
     rgba(18, 18, 25, 0.92);
   cursor: pointer;
   z-index: 2;
@@ -63,9 +61,9 @@
 .rag-tab::after {
   content: "";
   position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 7px;
+  left: 10px;
+  right: 10px;
+  bottom: 5px;
   height: 2px;
   border-radius: 999px;
   background: transparent;
@@ -77,31 +75,31 @@
 /* Pasif sekme hover efekti */
 .rag-tab:hover {
   color: #ffffff;
-  transform: translateY(-2px);
-  border-color: rgba(238, 167, 255, 0.28);
+  transform: translateY(-1px);
+  border-color: rgba(238, 167, 255, 0.26);
   background:
-    linear-gradient(180deg, rgba(238, 167, 255, 0.12), rgba(255, 0, 31, 0.055)),
+    linear-gradient(180deg, rgba(238, 167, 255, 0.1), rgba(255, 0, 31, 0.045)),
     rgba(24, 24, 32, 0.96);
 }
 
 /* Hover durumunda alt vurgu */
 .rag-tab:hover::after {
-  background: rgba(238, 167, 255, 0.42);
+  background: rgba(238, 167, 255, 0.38);
 }
 
 /* Aktif sekme */
 .rag-tab.active {
-  height: 49px;
+  height: 39px;
   color: #ffffff;
   transform: translateY(1px);
-  border-color: rgba(238, 167, 255, 0.34);
+  border-color: rgba(238, 167, 255, 0.3);
   background:
-    radial-gradient(circle at top left, rgba(255, 0, 31, 0.28), transparent 42%),
-    radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.22), transparent 44%),
+    radial-gradient(circle at top left, rgba(255, 0, 31, 0.24), transparent 42%),
+    radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.18), transparent 44%),
     linear-gradient(180deg, #171720 0%, #101018 100%);
   box-shadow:
-    0 -8px 24px rgba(255, 0, 31, 0.12),
-    0 0 18px rgba(238, 167, 255, 0.12);
+    0 -6px 18px rgba(255, 0, 31, 0.1),
+    0 0 14px rgba(238, 167, 255, 0.1);
   z-index: 4;
 }
 
@@ -120,37 +118,37 @@
 .rag-tab.active::after {
   background: var(--rag-gradient-horizontal);
   box-shadow:
-    0 0 10px rgba(255, 0, 31, 0.32),
-    0 0 12px rgba(238, 167, 255, 0.24);
+    0 0 8px rgba(255, 0, 31, 0.26),
+    0 0 10px rgba(238, 167, 255, 0.2);
 }
 
 /* Klavye erişilebilirliği */
 .rag-tab:focus-visible {
-  outline: 2px solid rgba(238, 167, 255, 0.7);
+  outline: 2px solid rgba(238, 167, 255, 0.65);
   outline-offset: -3px;
 }
 
 /* Küçük ekran uyumu */
 @media (max-width: 540px) {
   .rag-tabs {
-    height: 54px;
-    padding: 8px 10px 0;
+    height: 44px;
+    padding: 6px 8px 0;
     gap: 3px;
   }
 
   .rag-tab {
-    height: 42px;
-    font-size: 12px;
-    padding: 0 6px;
-    border-radius: 14px 14px 0 0;
+    height: 34px;
+    font-size: 10.5px;
+    padding: 0 5px;
+    border-radius: 12px 12px 0 0;
   }
 
   .rag-tab.active {
-    height: 46px;
+    height: 37px;
   }
 
   .rag-tab::after {
-    left: 10px;
-    right: 10px;
+    left: 8px;
+    right: 8px;
   }
 }

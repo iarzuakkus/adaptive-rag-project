@@ -2,105 +2,152 @@
  * Dosya: widget-shell.js
  *
  * Görev:
- * - Adaptive RAG ana widget penceresinin sabit HTML iskeletini oluşturur.
- * - Header alanını, logo bölümünü, kapatma butonunu, sekme şeridini ve içerik gövdesini üretir.
- * - Chat, Kaynaklar ve Notlar sekmelerinin temel HTML yapısı burada tanımlanır.
+ * - Launcher baloncuğunun HTML'ini üretir.
+ * - Widget panelinin ana HTML iskeletini üretir.
+ * - Oturum kapalıyken gösterilecek pasif ekranı üretir.
  *
  * Not:
- * - Sekmelerin görsel tasarımı widget-tabs.css dosyasında yapılır.
- * - Widget'ın genel yerleşimi widget-layout.css dosyasında yönetilir.
- * - Sekme içerikleri chat-tab.js, sources-tab.js ve notes-tab.js dosyalarından gelir.
+ * - Event bağlama işlemleri burada yapılmaz.
+ * - Chat, Kaynaklar ve Notlar içerikleri burada üretilmez.
  */
 
 (function () {
-  /**
-   * Widget'ın ana HTML kabuğunu oluşturur.
-   *
-   * Bu fonksiyon yalnızca sabit yapıyı üretir:
-   * - Üst başlık alanı
-   * - Tarayıcı sekmesi görünümündeki sekme şeridi
-   * - Aktif sekme içeriğinin basılacağı gövde alanı
-   */
-  function renderWidgetShell() {
-    const logoUrl = chrome.runtime.getURL("assets/logo.svg");
+  if (window.AdaptiveRagWidgetShell?.__shellName === "widget-shell") {
+    return;
+  }
 
+  function getLogoUrl() {
+    if (window.AdaptiveRagState?.getLogoUrl) {
+      return window.AdaptiveRagState.getLogoUrl();
+    }
+
+    try {
+      return chrome.runtime.getURL("assets/logo.svg");
+    } catch {
+      return "";
+    }
+  }
+
+  function renderLauncher() {
     return `
-      <!-- Widget üst başlık alanı -->
-      <div class="rag-widget-header">
-        <div class="rag-widget-brand">
-          <div class="rag-widget-brand-logo">
-            <img
-              src="${logoUrl}"
-              alt="Adaptive RAG Logo"
-              class="rag-widget-brand-logo-image"
-            />
-          </div>
-
-          <div class="rag-widget-brand-text">
-            <h2>Adaptive RAG</h2>
-            <span>Kişisel araştırma asistanı</span>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          class="rag-widget-close"
-          id="ragWidgetClose"
-          aria-label="Widget'ı kapat"
-        >
-          ×
-        </button>
-      </div>
-
-      <!-- Tarayıcı sekmesi görünümündeki ana sekme şeridi -->
-      <div
-        class="rag-widget-tabs"
-        role="tablist"
-        aria-label="Adaptive RAG sekmeleri"
-      >
-        <button
-          type="button"
-          class="rag-tab active"
-          data-tab="chat"
-          role="tab"
-          aria-selected="true"
-        >
-          Chat
-        </button>
-
-        <button
-          type="button"
-          class="rag-tab"
-          data-tab="sources"
-          role="tab"
-          aria-selected="false"
-        >
-          Kaynaklar
-        </button>
-
-        <button
-          type="button"
-          class="rag-tab"
-          data-tab="notes"
-          role="tab"
-          aria-selected="false"
-        >
-          Notlar
-        </button>
-      </div>
-
-      <!-- Aktif sekmenin içeriği widget.js tarafından bu gövdeye render edilir -->
-      <div class="rag-widget-body" id="ragWidgetBody"></div>
+      <img
+        src="${getLogoUrl()}"
+        alt="Adaptive RAG Logo"
+        class="rag-launcher-logo"
+      />
     `;
   }
 
-  /**
-   * Shell render fonksiyonunu global alana açar.
-   *
-   * widget.js bu fonksiyonu çağırarak ana widget panelinin
-   * HTML iskeletini sayfaya ekler.
-   */
+  function renderWidgetShell() {
+    return `
+      <div class="rag-window">
+        <header class="rag-header">
+          <div class="rag-brand">
+            <div class="rag-brand-logo-wrap">
+              <img
+                src="${getLogoUrl()}"
+                alt="Adaptive RAG"
+                class="rag-brand-logo"
+              />
+            </div>
+
+            <div class="rag-brand-text">
+              <strong>Adaptive RAG</strong>
+              <span>Kişisel araştırma asistanı</span>
+            </div>
+          </div>
+
+          <button
+            id="ragWidgetClose"
+            class="rag-close-btn"
+            type="button"
+            aria-label="Widget kapat"
+          >
+            ×
+          </button>
+        </header>
+
+        <nav class="rag-tabs" role="tablist" aria-label="Adaptive RAG sekmeleri">
+          <button
+            class="rag-tab active"
+            type="button"
+            data-tab="chat"
+            role="tab"
+            aria-selected="true"
+          >
+            Chat
+          </button>
+
+          <button
+            class="rag-tab"
+            type="button"
+            data-tab="sources"
+            role="tab"
+            aria-selected="false"
+          >
+            Kaynaklar
+          </button>
+
+          <button
+            class="rag-tab"
+            type="button"
+            data-tab="notes"
+            role="tab"
+            aria-selected="false"
+          >
+            Notlar
+          </button>
+        </nav>
+
+        <main id="ragWidgetBody" class="rag-body"></main>
+      </div>
+    `;
+  }
+
+  function renderPassiveSession() {
+    return `
+      <div class="rag-window">
+        <header class="rag-header">
+          <div class="rag-brand">
+            <div class="rag-brand-logo-wrap">
+              <img
+                src="${getLogoUrl()}"
+                alt="Adaptive RAG"
+                class="rag-brand-logo"
+              />
+            </div>
+
+            <div class="rag-brand-text">
+              <strong>Adaptive RAG</strong>
+              <span>Oturum kapalı</span>
+            </div>
+          </div>
+
+          <button
+            id="ragWidgetClose"
+            class="rag-close-btn"
+            type="button"
+            aria-label="Widget kapat"
+          >
+            ×
+          </button>
+        </header>
+
+        <main class="rag-body">
+          <div class="rag-empty-state">
+            <strong>Oturum kapalı.</strong>
+            <span>Popup içinden oturumu açınca chat, kaynaklar ve notlar aktif olur.</span>
+          </div>
+        </main>
+      </div>
+    `;
+  }
+
   window.AdaptiveRagWidgetShell = {
-    renderWidgetShell
+    __shellName: "widget-shell",
+
+    renderLauncher,
+    renderWidgetShell,
+    renderPassiveSession
   };
 })();

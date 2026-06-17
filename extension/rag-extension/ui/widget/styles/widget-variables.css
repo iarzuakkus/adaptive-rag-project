@@ -28,41 +28,42 @@
   --rag-gradient-main: linear-gradient(135deg, #ff001f 0%, #eea7ff 100%);
   --rag-gradient-reverse: linear-gradient(135deg, #eea7ff 0%, #ff001f 100%);
   --rag-gradient-horizontal: linear-gradient(90deg, #ff001f 0%, #eea7ff 100%);
+
   --rag-gradient-soft: linear-gradient(
     135deg,
-    rgba(255, 0, 31, 0.15) 0%,
-    rgba(238, 167, 255, 0.15) 100%
+    rgba(255, 0, 31, 0.12) 0%,
+    rgba(238, 167, 255, 0.12) 100%
   );
 
   --rag-gradient-panel: radial-gradient(
       circle at top left,
-      rgba(238, 167, 255, 0.18),
-      transparent 34%
+      rgba(238, 167, 255, 0.16),
+      transparent 32%
     ),
     radial-gradient(
       circle at bottom right,
-      rgba(255, 0, 31, 0.16),
-      transparent 34%
+      rgba(255, 0, 31, 0.14),
+      transparent 32%
     ),
     linear-gradient(180deg, #11111a 0%, #08080d 100%);
 
   /* Gölge */
-  --rag-shadow-main: 0 14px 35px rgba(255, 0, 31, 0.28);
-  --rag-shadow-panel: 0 18px 55px rgba(0, 0, 0, 0.45);
-  --rag-shadow-card: 0 10px 28px rgba(0, 0, 0, 0.22);
-  --rag-shadow-glow: 0 0 32px rgba(238, 167, 255, 0.22);
+  --rag-shadow-main: 0 10px 26px rgba(255, 0, 31, 0.24);
+  --rag-shadow-panel: 0 14px 42px rgba(0, 0, 0, 0.42);
+  --rag-shadow-card: 0 8px 20px rgba(0, 0, 0, 0.2);
+  --rag-shadow-glow: 0 0 24px rgba(238, 167, 255, 0.18);
 
   /* Radius */
-  --rag-radius-xl: 28px;
-  --rag-radius-lg: 22px;
-  --rag-radius-md: 16px;
-  --rag-radius-sm: 12px;
+  --rag-radius-xl: 22px;
+  --rag-radius-lg: 18px;
+  --rag-radius-md: 14px;
+  --rag-radius-sm: 10px;
   --rag-radius-pill: 999px;
 
   /* Ölçüler */
-  --rag-launcher-size: 62px;
-  --rag-widget-width: 430px;
-  --rag-widget-height: 660px;
+  --rag-launcher-size: 56px;
+  --rag-widget-width: 360px;
+  --rag-widget-height: 540px;
 
   /* Font */
   --rag-font-family: Arial, Helvetica, sans-serif;

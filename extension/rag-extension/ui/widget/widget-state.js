@@ -1,39 +1,244 @@
+/**
+ * Dosya: widget-state.js
+ *
+ * Görev:
+ * - Widget genel durumunu tutar.
+ * - Aktif tab bilgisini yönetir.
+ * - Oturum açık/kapalı bilgisini storage ile senkron tutar.
+ * - Session ve research store işlemleri için ortak yardımcılar sağlar.
+ */
+
 (function () {
+  if (window.AdaptiveRagState?.__stateName === "widget-state") {
+    return;
+  }
+
+  const SESSION_ENABLED_KEY = "adaptive_rag_session_enabled";
+
   const state = {
     activeTab: "chat",
-    openedPageId: null
+    isSessionActive: false
   };
+
+  /* -------------------- Storage -------------------- */
+
+  function getStorageValue(key, defaultValue = null) {
+    return new Promise((resolve) => {
+      chrome.storage.local.get([key], (result) => {
+        resolve(result[key] ?? defaultValue);
+      });
+    });
+  }
+
+  function setStorageValue(key, value) {
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ [key]: value }, () => {
+        resolve(value);
+      });
+    });
+  }
+
+  /* -------------------- Tab State -------------------- */
 
   function getActiveTab() {
     return state.activeTab;
   }
 
   function setActiveTab(tabName) {
-    state.activeTab = tabName;
+    const allowedTabs = ["chat", "sources", "notes"];
+
+    state.activeTab = allowedTabs.includes(tabName) ? tabName : "chat";
+    return state.activeTab;
   }
 
-  function getOpenedPageId() {
-    return state.openedPageId;
+  /* -------------------- Session State -------------------- */
+
+  function isSessionActive() {
+    return Boolean(state.isSessionActive);
   }
 
-  function toggleOpenedPage(pageId) {
-    state.openedPageId = state.openedPageId === pageId ? null : pageId;
+  function setSessionActive(value) {
+    state.isSessionActive = Boolean(value);
+    return state.isSessionActive;
   }
 
-  function setOpenedPage(pageId) {
-    state.openedPageId = pageId;
+  async function loadSessionState() {
+    const savedValue = await getStorageValue(SESSION_ENABLED_KEY, false);
+
+    state.isSessionActive = Boolean(savedValue);
+
+    return state.isSessionActive;
   }
 
-  function resetOpenedPage() {
-    state.openedPageId = null;
+  async function saveSessionState(value) {
+    state.isSessionActive = Boolean(value);
+
+    await setStorageValue(SESSION_ENABLED_KEY, state.isSessionActive);
+
+    return state.isSessionActive;
+  }
+
+  async function prepareSession() {
+    try {
+      if (!window.AdaptiveRagSessionStore?.ensureActiveSession) {
+        console.warn("[WIDGET STATE] Session store bulunamadı.");
+        return false;
+      }
+
+      const session = await window.AdaptiveRagSessionStore.ensureActiveSession();
+
+      if (!session?.id) {
+        return false;
+      }
+
+      if (window.AdaptiveRagStore?.initResearchSession) {
+        await window.AdaptiveRagStore.initResearchSession(session.id);
+      }
+
+      await saveSessionState(true);
+
+      return true;
+    } catch (error) {
+      console.warn("[WIDGET STATE] Oturum hazırlanamadı:", error);
+
+      await saveSessionState(false);
+
+      return false;
+    }
+  }
+
+  async function clearSessionData() {
+    let activeSessionId = null;
+
+    try {
+      if (window.AdaptiveRagSessionStore?.getActiveSessionId) {
+        activeSessionId = await window.AdaptiveRagSessionStore.getActiveSessionId();
+      }
+    } catch (error) {
+      console.warn("[WIDGET STATE] Aktif session id alınamadı:", error);
+    }
+
+    try {
+      if (window.AdaptiveRagStore?.clearResearchSession) {
+        await window.AdaptiveRagStore.clearResearchSession(activeSessionId);
+      }
+    } catch (error) {
+      console.warn("[WIDGET STATE] Research verisi temizlenemedi:", error);
+    }
+
+    try {
+      if (window.AdaptiveRagSessionStore?.clearChatSession) {
+        await window.AdaptiveRagSessionStore.clearChatSession(activeSessionId);
+      }
+    } catch (error) {
+      console.warn("[WIDGET STATE] Chat verisi temizlenemedi:", error);
+    }
+
+    try {
+      if (window.AdaptiveRagSessionStore?.endActiveSession) {
+        await window.AdaptiveRagSessionStore.endActiveSession();
+      }
+    } catch (error) {
+      console.warn("[WIDGET STATE] Aktif session sonlandırılamadı:", error);
+    }
+
+    await saveSessionState(false);
+
+    return true;
+  }
+
+  /* -------------------- Research Helpers -------------------- */
+
+  function getResearchData() {
+    try {
+      if (window.AdaptiveRagStore?.getResearchData) {
+        return window.AdaptiveRagStore.getResearchData();
+      }
+    } catch (error) {
+      console.warn("[WIDGET STATE] Research verisi alınamadı:", error);
+    }
+
+    return {
+      pages: [],
+      notes: {
+        generalSummary: ""
+      },
+      timeline: []
+    };
+  }
+
+  async function saveResearchData(data) {
+    try {
+      if (window.AdaptiveRagStore?.saveResearchData) {
+        return await window.AdaptiveRagStore.saveResearchData(data);
+      }
+    } catch (error) {
+      console.warn("[WIDGET STATE] Research verisi kaydedilemedi:", error);
+    }
+
+    return data;
+  }
+
+  /* -------------------- UI Helpers -------------------- */
+
+  function getLogoUrl() {
+    try {
+      return chrome.runtime.getURL("assets/logo.svg");
+    } catch {
+      return "";
+    }
+  }
+
+  function escapeHtml(text) {
+    return String(text || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function trimText(text, maxLength = 180) {
+    const value = String(text || "").trim();
+
+    if (value.length <= maxLength) {
+      return value;
+    }
+
+    return `${value.slice(0, maxLength)}...`;
+  }
+
+  function autoResizeTextarea(element) {
+    if (!element) {
+      return;
+    }
+
+    element.style.height = "auto";
+    element.style.height = `${Math.min(element.scrollHeight, 130)}px`;
   }
 
   window.AdaptiveRagState = {
+    __stateName: "widget-state",
+
+    getStorageValue,
+    setStorageValue,
+
     getActiveTab,
     setActiveTab,
-    getOpenedPageId,
-    toggleOpenedPage,
-    setOpenedPage,
-    resetOpenedPage
+
+    isSessionActive,
+    setSessionActive,
+    loadSessionState,
+    saveSessionState,
+    prepareSession,
+    clearSessionData,
+
+    getResearchData,
+    saveResearchData,
+
+    getLogoUrl,
+    escapeHtml,
+    trimText,
+    autoResizeTextarea
   };
 })();

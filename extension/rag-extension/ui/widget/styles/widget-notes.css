@@ -10,24 +10,24 @@
 .rag-notes-layout {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 /* Her not bloğu */
 .rag-note-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 /* Genel özet textarea */
 .rag-note-textarea {
-  min-height: 120px;
-  max-height: 220px;
+  min-height: 95px;
+  max-height: 180px;
   resize: vertical;
-  padding: 12px 13px;
-  font-size: 13px;
-  line-height: 1.55;
+  padding: 9px 10px;
+  font-size: 10.8px;
+  line-height: 1.42;
 }
 
 /* Özeti kaydet butonu */
@@ -39,23 +39,23 @@
 .rag-quote-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 /* Alıntı kartı */
 .rag-quote-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   background:
-    radial-gradient(circle at top left, rgba(238, 167, 255, 0.10), transparent 34%),
-    rgba(255, 255, 255, 0.035);
+    radial-gradient(circle at top left, rgba(238, 167, 255, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.03);
 }
 
 .rag-quote-card p {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: 10.5px;
+  line-height: 1.42;
   color: var(--rag-color-text-muted);
 }
 
@@ -63,20 +63,20 @@
 .rag-quote-source {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding-top: 9px;
-  border-top: 1px solid rgba(238, 167, 255, 0.12);
+  gap: 2px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(238, 167, 255, 0.1);
 }
 
 .rag-quote-source strong {
-  font-size: 12px;
+  font-size: 10.5px;
   color: var(--rag-color-text);
   font-weight: 800;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .rag-quote-source span {
-  font-size: 11px;
+  font-size: 9.8px;
   color: var(--rag-color-text-soft);
 }
 
@@ -84,17 +84,17 @@
 .rag-recommendation-list {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 7px;
 }
 
 /* Tek öneri kartı */
 .rag-recommendation-item {
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 10.5px;
+  line-height: 1.42;
   color: var(--rag-color-text-muted);
-  border-left: 3px solid var(--rag-color-secondary);
+  border-left: 2px solid var(--rag-color-secondary);
   background:
-    linear-gradient(90deg, rgba(238, 167, 255, 0.08), rgba(255, 0, 31, 0.035)),
+    linear-gradient(90deg, rgba(238, 167, 255, 0.07), rgba(255, 0, 31, 0.03)),
     rgba(255, 255, 255, 0.03);
 }
 
@@ -102,18 +102,18 @@
 .rag-export-actions {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 7px;
   flex-wrap: wrap;
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 .rag-export-actions .rag-secondary-btn {
-  min-width: 82px;
+  min-width: 68px;
 }
 
 /* PDF / Word açıklaması */
 .rag-note-panel .rag-small-info {
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 /* Notlar sekmesindeki link butonu */
@@ -121,19 +121,19 @@
   align-self: flex-start;
 }
 
-/* Eski class desteği: önceki dosyalardan kalan yapılar bozulmasın */
+/* Eski class desteği */
 .rag-notes-block {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .rag-note-card div {
-  margin-top: 10px;
+  margin-top: 8px;
   display: flex;
   justify-content: space-between;
-  gap: 10px;
-  font-size: 12px;
+  gap: 8px;
+  font-size: 10.5px;
 }
 
 .rag-note-card span {
@@ -147,20 +147,21 @@
 }
 
 .rag-recommendation-card h4 {
-  margin: 0 0 8px;
-  font-size: 14px;
+  margin: 0 0 6px;
+  font-size: 11.5px;
   color: var(--rag-color-text);
 }
 
 /* Mobil uyum */
 @media (max-width: 540px) {
   .rag-notes-layout {
-    gap: 12px;
+    gap: 9px;
   }
 
   .rag-note-textarea {
-    min-height: 105px;
-    font-size: 12px;
+    min-height: 90px;
+    font-size: 10.5px;
+    padding: 8px 9px;
   }
 
   #ragSaveSummaryBtn {

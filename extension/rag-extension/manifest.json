@@ -15,6 +15,7 @@
     "http://localhost:8000/*"
   ],
   "action": {
+    "default_popup": "ui/popup.html",
     "default_title": "Adaptive RAG",
     "default_icon": {
       "64": "assets/logo64.png",
@@ -65,6 +66,16 @@
         "scraping/page-scan-rules.js",
         "scraping/scan-prompt.js",
         "scraping/content.js",
+
+        "ui/widget/widget-state.js",
+
+        "ui/widget/events/source-events.js",
+        "ui/widget/events/highlight-events.js",
+
+        "ui/widget/render/widget-shell.js",
+        "ui/widget/render/chat-tab.js",
+        "ui/widget/render/sources-tab.js",
+        "ui/widget/render/notes-tab.js",
 
         "ui/widget/widget.js"
       ],

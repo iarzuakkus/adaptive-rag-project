@@ -4,11 +4,6 @@
   Görev:
   - Widget içindeki ortak kart, boş durum, küçük bilgi kutusu ve genel panel tasarımlarını yönetir.
   - Kaynaklar, Notlar ve Chat sekmelerinde tekrar kullanılan ortak stiller burada tutulur.
-
-  Not:
-  - Chat özel stilleri widget-chat.css içinde.
-  - Kaynaklar özel stilleri widget-sources.css içinde.
-  - Notlar özel stilleri widget-notes.css içinde.
 */
 
 /* Ortak kart görünümü */
@@ -25,9 +20,9 @@
 .rag-chunk-card,
 .rag-recommendation-item {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
-    rgba(255, 255, 255, 0.035);
-  border-radius: var(--rag-radius-lg);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.038), rgba(255, 255, 255, 0.018)),
+    rgba(255, 255, 255, 0.03);
+  border-radius: var(--rag-radius-md);
   border: 1px solid var(--rag-color-border);
   box-shadow: var(--rag-shadow-card);
 }
@@ -41,7 +36,7 @@
 .rag-recommendation-card,
 .rag-timeline-box,
 .rag-empty-state {
-  padding: 14px;
+  padding: 10px;
 }
 
 /* Küçük kart iç boşlukları */
@@ -49,28 +44,28 @@
 .rag-quote-card,
 .rag-chunk-card,
 .rag-recommendation-item {
-  padding: 12px;
+  padding: 8px;
 }
 
 /* Boş durum kartı */
 .rag-empty-state {
-  min-height: 150px;
+  min-height: 115px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 5px;
   text-align: center;
   background:
-    radial-gradient(circle at top left, rgba(255, 0, 31, 0.16), transparent 34%),
-    radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.14), transparent 36%),
-    rgba(255, 255, 255, 0.035);
+    radial-gradient(circle at top left, rgba(255, 0, 31, 0.13), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.11), transparent 36%),
+    rgba(255, 255, 255, 0.03);
 }
 
 .rag-empty-state strong {
   display: block;
   margin: 0;
-  font-size: 15px;
+  font-size: 12.5px;
   font-weight: 800;
   color: var(--rag-color-text);
 }
@@ -78,20 +73,20 @@
 .rag-empty-state span,
 .rag-empty-state p {
   display: block;
-  max-width: 290px;
+  max-width: 250px;
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 10.5px;
+  line-height: 1.4;
   color: var(--rag-color-text-muted);
 }
 
 /* Küçük boş durum */
 .rag-mini-empty {
   color: var(--rag-color-text-muted);
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 10.5px;
+  line-height: 1.4;
   text-align: center;
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 /* Genel başlıklar */
@@ -102,8 +97,8 @@
 .rag-note-card h3,
 .rag-recommendation-card h3,
 .rag-empty-state h3 {
-  margin: 0 0 8px;
-  font-size: 15px;
+  margin: 0 0 6px;
+  font-size: 12.5px;
   color: var(--rag-color-text);
   font-weight: 800;
 }
@@ -119,26 +114,26 @@
 .rag-quote-card p,
 .rag-recommendation-item p {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 10.8px;
+  line-height: 1.42;
   color: var(--rag-color-text-muted);
 }
 
 /* Küçük etiket */
 .rag-small-label {
   display: inline-block;
-  margin-bottom: 8px;
-  font-size: 11px;
+  margin-bottom: 6px;
+  font-size: 9.8px;
   font-weight: 800;
   color: var(--rag-color-secondary);
-  letter-spacing: 0.2px;
+  letter-spacing: 0.15px;
 }
 
 /* Küçük açıklama metni */
 .rag-small-info {
-  margin: 10px 0 0;
-  font-size: 12px;
-  line-height: 1.45;
+  margin: 7px 0 0;
+  font-size: 10px;
+  line-height: 1.35;
   color: var(--rag-color-text-soft);
 }
 
@@ -149,8 +144,8 @@
 .rag-chunk-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 6px;
+  margin-top: 9px;
   flex-wrap: wrap;
 }
 
@@ -173,19 +168,19 @@
 .rag-quote-card:hover,
 .rag-chunk-card:hover,
 .rag-recommendation-item:hover {
-  border-color: rgba(238, 167, 255, 0.18);
+  border-color: rgba(238, 167, 255, 0.16);
   background:
-    linear-gradient(180deg, rgba(238, 167, 255, 0.055), rgba(255, 0, 31, 0.025)),
-    rgba(255, 255, 255, 0.045);
+    linear-gradient(180deg, rgba(238, 167, 255, 0.045), rgba(255, 0, 31, 0.02)),
+    rgba(255, 255, 255, 0.038);
 }
 
 /* Form alanları için ortak görünüm */
 .rag-note-textarea,
 .rag-chat-input {
   width: 100%;
-  border: 1px solid rgba(238, 167, 255, 0.16);
-  border-radius: var(--rag-radius-md);
-  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(238, 167, 255, 0.15);
+  border-radius: var(--rag-radius-sm);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--rag-color-text);
   font-family: var(--rag-font-family);
   outline: none;
@@ -197,9 +192,9 @@
 
 .rag-note-textarea:focus,
 .rag-chat-input:focus {
-  border-color: rgba(238, 167, 255, 0.46);
-  box-shadow: 0 0 0 3px rgba(238, 167, 255, 0.10);
-  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(238, 167, 255, 0.42);
+  box-shadow: 0 0 0 2px rgba(238, 167, 255, 0.09);
+  background: rgba(255, 255, 255, 0.065);
 }
 
 .rag-note-textarea::placeholder,
@@ -218,8 +213,8 @@
 .rag-divider {
   width: 100%;
   height: 1px;
-  background: rgba(238, 167, 255, 0.12);
-  margin: 12px 0;
+  background: rgba(238, 167, 255, 0.1);
+  margin: 9px 0;
 }
 
 /* Mobil uyum */
@@ -232,19 +227,28 @@
   .rag-recommendation-card,
   .rag-timeline-box,
   .rag-empty-state {
-    padding: 12px;
-    border-radius: var(--rag-radius-md);
+    padding: 9px;
+    border-radius: var(--rag-radius-sm);
   }
 
   .rag-mini-empty,
   .rag-quote-card,
   .rag-chunk-card,
   .rag-recommendation-item {
-    padding: 10px;
-    border-radius: var(--rag-radius-md);
+    padding: 8px;
+    border-radius: var(--rag-radius-sm);
   }
 
   .rag-empty-state {
-    min-height: 130px;
+    min-height: 105px;
+  }
+
+  .rag-empty-state strong {
+    font-size: 12px;
+  }
+
+  .rag-empty-state span,
+  .rag-empty-state p {
+    font-size: 10px;
   }
 }

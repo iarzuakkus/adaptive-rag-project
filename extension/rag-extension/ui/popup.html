@@ -3,10 +3,15 @@
 
   Görev:
   - Chrome extension popup arayüzünü oluşturur.
-  - Adaptive RAG baloncuğunu açıp kapatmak için switch gösterir.
+  - Adaptive RAG oturumunu açıp kapatmak için switch gösterir.
   - Kullanıcının sayfa tarama modunu seçmesini sağlar:
     - Elle Tara: Sayfaya girince “Bu sayfayı tara?” kartı gösterilir.
     - Otomatik Tara: Uygun sayfalar kullanıcıya sorulmadan taranır.
+
+  Not:
+  - Sağ alttaki baloncuk artık popup switch ile silinmez.
+  - Switch sadece oturumu açıp kapatır.
+  - Oturum kapanınca widget içindeki chat/kaynak/not verileri temizlenir.
 
   Bağlı olduğu dosyalar:
   - popup.js
@@ -27,7 +32,7 @@
 <body>
   <!-- Popup ana kutusu -->
   <div class="mini-popup">
-    <!-- Üst bölüm: logo, başlık ve baloncuk switch alanı -->
+    <!-- Üst bölüm: logo, başlık ve oturum switch alanı -->
     <div class="mini-popup-row">
       <div class="mini-popup-info">
         <div class="mini-logo">
@@ -40,11 +45,11 @@
 
         <div>
           <h1>Adaptive RAG</h1>
-          <p>Baloncuk</p>
+          <p>Oturum aç/kapa</p>
         </div>
       </div>
 
-      <label class="switch" aria-label="Adaptive RAG baloncuğunu aç veya kapat">
+      <label class="switch" aria-label="Adaptive RAG oturumunu aç veya kapat">
         <input type="checkbox" id="widgetToggle" />
         <span class="slider"></span>
       </label>

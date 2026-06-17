@@ -2,86 +2,64 @@
  * Dosya: session-store.js
  *
  * Görev:
- * - Adaptive RAG için aktif kullanıcı oturumunu yönetir.
- * - Widget açıldığında aktif oturum başlatır.
- * - Sayfa yenilense bile aktif oturum bilgisini chrome.storage.local içinde korur.
- * - Chat mesajlarını aktif sessionId'ye bağlı şekilde saklar.
+ * - Adaptive RAG oturumunu yönetir.
+ * - Aktif session bilgisini chrome.storage.local içinde saklar.
+ * - Chat mesajlarını sessionId bazlı tutar.
  *
- * Önemli:
- * - Bu dosya kaynak/kart verilerini tutmaz.
- * - Taranan sayfalar, notlar, alıntılar ve timeline verileri research-store.js içinde tutulur.
- * - Bu dosya sadece oturum kimliği, oturum durumu ve chat mesajlarını yönetir.
+ * Not:
+ * - Kaynaklar, notlar ve özetler bu dosyada tutulmaz.
+ * - Onlar research-store.js içinde yönetilir.
  */
 
 (function () {
-  const ACTIVE_SESSION_KEY = "adaptive_rag_active_session";
-  const CHAT_MESSAGES_KEY = "adaptive_rag_chat_messages_by_session";
-
-  /**
-   * Aynı store tekrar inject edilirse yeniden tanımlanmasını engeller.
-   */
   if (window.AdaptiveRagSessionStore?.__storeName === "session-store") {
     return;
   }
 
-  /**
-   * Güvenli unique id üretir.
-   */
+  const ACTIVE_SESSION_KEY = "adaptive_rag_active_session";
+  const CHAT_MESSAGES_KEY = "adaptive_rag_chat_messages_by_session";
+  const SESSION_ENABLED_KEY = "adaptive_rag_session_enabled";
+
+  /* -------------------- Storage Yardımcıları -------------------- */
+
+  function getStorageValue(key, defaultValue = null) {
+    return new Promise((resolve) => {
+      chrome.storage.local.get([key], (result) => {
+        resolve(result[key] ?? defaultValue);
+      });
+    });
+  }
+
+  function setStorageValue(key, value) {
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ [key]: value }, () => {
+        resolve(value);
+      });
+    });
+  }
+
+  function removeStorageValue(key) {
+    return new Promise((resolve) => {
+      chrome.storage.local.remove([key], () => {
+        resolve(true);
+      });
+    });
+  }
+
+  /* -------------------- ID / Session -------------------- */
+
   function createId(prefix = "session") {
-    if (window.crypto && crypto.randomUUID) {
+    if (window.crypto?.randomUUID) {
       return `${prefix}-${crypto.randomUUID()}`;
     }
 
     return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
-  /**
-   * Storage okuma işlemini Promise formatına çevirir.
-   */
-  function getFromStorage(key) {
-    return new Promise((resolve) => {
-      chrome.storage.local.get([key], (result) => {
-        resolve(result[key]);
-      });
-    });
-  }
-
-  /**
-   * Storage yazma işlemini Promise formatına çevirir.
-   */
-  function setToStorage(key, value) {
-    return new Promise((resolve) => {
-      chrome.storage.local.set(
-        {
-          [key]: value
-        },
-        () => resolve(value)
-      );
-    });
-  }
-
-  /**
-   * Storage silme işlemini Promise formatına çevirir.
-   */
-  function removeFromStorage(key) {
-    return new Promise((resolve) => {
-      chrome.storage.local.remove([key], () => resolve());
-    });
-  }
-
-  /**
-   * Yeni aktif oturum nesnesi oluşturur.
-   *
-   * Bu oturum:
-   * - Sayfa yenilense bile storage içinde korunur.
-   * - Kullanıcı açıkça oturumu bitirmediği sürece aktif kalır.
-   */
   function createSession() {
     return {
       id: createId("session"),
-      isActive: true,
       startedAt: new Date().toISOString(),
-      endedAt: null,
       startPageUrl: window.location.href,
       startPageTitle: document.title,
       lastPageUrl: window.location.href,
@@ -89,38 +67,21 @@
     };
   }
 
-  /**
-   * Aktif oturumu döndürür.
-   * Eğer kayıt yoksa veya oturum aktif değilse null döner.
-   */
   async function getActiveSession() {
-    const session = await getFromStorage(ACTIVE_SESSION_KEY);
+    const session = await getStorageValue(ACTIVE_SESSION_KEY, null);
 
-    if (!session || !session.isActive || !session.id) {
+    if (!session || !session.id) {
       return null;
     }
 
     return session;
   }
 
-  /**
-   * Aktif session id değerini döndürür.
-   * Aktif oturum yoksa null döner.
-   */
   async function getActiveSessionId() {
     const session = await getActiveSession();
     return session?.id || null;
   }
 
-  /**
-   * Yeni oturum başlatır.
-   *
-   * forceNew false ise:
-   * - Aktif oturum zaten varsa onu döndürür.
-   *
-   * forceNew true ise:
-   * - Eski aktif oturum yerine yeni oturum başlatır.
-   */
   async function startSession(options = {}) {
     const { forceNew = false } = options;
 
@@ -128,38 +89,31 @@
       const existingSession = await getActiveSession();
 
       if (existingSession) {
+        await setStorageValue(SESSION_ENABLED_KEY, true);
         return existingSession;
       }
     }
 
-    const newSession = createSession();
+    const session = createSession();
 
-    await setToStorage(ACTIVE_SESSION_KEY, newSession);
+    await setStorageValue(ACTIVE_SESSION_KEY, session);
+    await setStorageValue(SESSION_ENABLED_KEY, true);
 
-    return newSession;
+    return session;
   }
 
-  /**
-   * Aktif oturum varsa onu döndürür.
-   * Yoksa yeni bir oturum başlatır.
-   *
-   * Widget açılırken veya veri kaydedilmeden önce kullanılmalıdır.
-   */
   async function ensureActiveSession() {
     const existingSession = await getActiveSession();
 
     if (existingSession) {
+      await updateActiveSession();
+      await setStorageValue(SESSION_ENABLED_KEY, true);
       return existingSession;
     }
 
     return await startSession();
   }
 
-  /**
-   * Aktif oturumu günceller.
-   *
-   * Örneğin kullanıcı başka sayfaya geçtiğinde son sayfa bilgisi güncellenebilir.
-   */
   async function updateActiveSession(updates = {}) {
     const session = await getActiveSession();
 
@@ -171,162 +125,113 @@
       ...session,
       ...updates,
       lastPageUrl: window.location.href,
-      lastPageTitle: document.title
+      lastPageTitle: document.title,
+      updatedAt: new Date().toISOString()
     };
 
-    await setToStorage(ACTIVE_SESSION_KEY, updatedSession);
+    await setStorageValue(ACTIVE_SESSION_KEY, updatedSession);
 
     return updatedSession;
   }
 
-  /**
-   * Aktif oturumu sonlandırır.
-   *
-   * Dikkat:
-   * - Widget panelini kapatırken bunu çağırmayacağız.
-   * - Çünkü sohbet ve kaynaklar kaybolmadan devam etmeli.
-   * - Bu fonksiyon ileride "Oturumu Bitir" gibi ayrı bir işlem için kullanılabilir.
-   */
   async function endActiveSession() {
-    const session = await getActiveSession();
+    await removeStorageValue(ACTIVE_SESSION_KEY);
+    await setStorageValue(SESSION_ENABLED_KEY, false);
 
-    if (!session) {
-      return null;
-    }
-
-    const endedSession = {
-      ...session,
-      isActive: false,
-      endedAt: new Date().toISOString()
-    };
-
-    await removeFromStorage(ACTIVE_SESSION_KEY);
-
-    return endedSession;
+    return true;
   }
 
-  /**
-   * Tüm sessionId'lere göre tutulan chat mesajlarını döndürür.
-   */
-  async function getAllChatSessions() {
-    const sessions = await getFromStorage(CHAT_MESSAGES_KEY);
+  async function isSessionActive() {
+    const session = await getActiveSession();
+    return Boolean(session?.id);
+  }
 
-    if (!sessions || typeof sessions !== "object" || Array.isArray(sessions)) {
+  /* -------------------- Chat Mesajları -------------------- */
+
+  async function getAllChatSessions() {
+    const allSessions = await getStorageValue(CHAT_MESSAGES_KEY, {});
+
+    if (!allSessions || typeof allSessions !== "object" || Array.isArray(allSessions)) {
       return {};
     }
 
-    return sessions;
+    return allSessions;
   }
 
-  /**
-   * Belirli bir sessionId için chat mesajlarını döndürür.
-   * sessionId verilmezse aktif oturum kullanılır.
-   */
   async function getChatSession(sessionId = null) {
-    const activeSessionId = sessionId || await getActiveSessionId();
+    const targetSessionId = sessionId || await getActiveSessionId();
 
-    if (!activeSessionId) {
+    if (!targetSessionId) {
       return [];
     }
 
     const allSessions = await getAllChatSessions();
-    const messages = allSessions[activeSessionId];
+    const messages = allSessions[targetSessionId];
 
-    if (!Array.isArray(messages)) {
-      return [];
-    }
-
-    return messages;
+    return Array.isArray(messages) ? messages : [];
   }
 
-  /**
-   * Belirli bir sessionId için chat mesajlarını kaydeder.
-   * sessionId verilmezse aktif oturum kullanılır.
-   */
   async function saveChatSession(messages, sessionId = null) {
-    const activeSessionId = sessionId || await getActiveSessionId();
+    const targetSessionId = sessionId || await getActiveSessionId();
 
-    if (!activeSessionId) {
+    if (!targetSessionId) {
       return [];
     }
 
     const allSessions = await getAllChatSessions();
 
-    allSessions[activeSessionId] = Array.isArray(messages) ? messages : [];
+    allSessions[targetSessionId] = Array.isArray(messages) ? messages : [];
 
-    await setToStorage(CHAT_MESSAGES_KEY, allSessions);
+    await setStorageValue(CHAT_MESSAGES_KEY, allSessions);
 
-    return allSessions[activeSessionId];
+    return allSessions[targetSessionId];
   }
 
-  /**
-   * Aktif oturuma yeni chat mesajı ekler.
-   *
-   * Mesajlar sessionId ile saklanır.
-   * Böylece farklı araştırma oturumları birbirine karışmaz.
-   */
   async function addMessageToSession(role, content) {
     const session = await ensureActiveSession();
     const messages = await getChatSession(session.id);
 
-    const newMessage = {
+    const message = {
       id: createId("message"),
       sessionId: session.id,
-      role,
-      content,
+      role: role === "user" ? "user" : "assistant",
+      content: String(content || ""),
       pageUrl: window.location.href,
       pageTitle: document.title,
       createdAt: new Date().toISOString()
     };
 
-    messages.push(newMessage);
+    messages.push(message);
 
     await saveChatSession(messages, session.id);
     await updateActiveSession();
 
-    return messages;
+    return message;
   }
 
-  /**
-   * Aktif oturuma ait son chat mesajlarını döndürür.
-   */
-  async function getLastMessages(limit = 12, sessionId = null) {
-    const messages = await getChatSession(sessionId);
-
-    return messages.slice(-limit);
-  }
-
-  /**
-   * Belirli bir oturuma ait chat mesajlarını temizler.
-   * sessionId verilmezse aktif oturumun mesajları temizlenir.
-   */
   async function clearChatSession(sessionId = null) {
-    const activeSessionId = sessionId || await getActiveSessionId();
+    const targetSessionId = sessionId || await getActiveSessionId();
 
-    if (!activeSessionId) {
+    if (!targetSessionId) {
       return true;
     }
 
     const allSessions = await getAllChatSessions();
 
-    delete allSessions[activeSessionId];
+    delete allSessions[targetSessionId];
 
-    await setToStorage(CHAT_MESSAGES_KEY, allSessions);
+    await setStorageValue(CHAT_MESSAGES_KEY, allSessions);
 
     return true;
   }
 
-  /**
-   * Aktif oturumun var olup olmadığını kontrol eder.
-   */
-  async function isSessionActive() {
-    const session = await getActiveSession();
-    return Boolean(session);
+  async function getLastMessages(limit = 12, sessionId = null) {
+    const messages = await getChatSession(sessionId);
+    return messages.slice(-limit);
   }
 
-  /**
-   * Dışarı açılan Session Store API'si.
-   */
+  /* -------------------- Dış API -------------------- */
+
   window.AdaptiveRagSessionStore = {
     __storeName: "session-store",
 

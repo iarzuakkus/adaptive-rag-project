@@ -2,35 +2,31 @@
  * Dosya: sources-tab.js
  *
  * Görev:
- * - Kaynaklar sekmesinin HTML içeriğini oluşturur.
- * - Aktif araştırma oturumundaki gerçek taranan sayfaları gösterir.
- * - Sayfa kartlarını, detay alanlarını, chunk listesini ve zaman çizelgesini render eder.
- * - Elle tarama modunda “Sayfayı tara” butonunu gösterir.
- * - Otomatik tarama modunda manuel tarama butonunu gizler.
+ * - Kaynaklar sekmesinin HTML içeriğini üretir.
+ * - Taranan sayfaları research-store.js üzerinden okur.
+ * - Elle tarama modunda "Sayfayı tara" butonunu gösterir.
  *
- * Önemli:
- * - Bu dosyada sahte/mock veri bulunmaz.
- * - Veriler window.AdaptiveRagStore.getResearchData() üzerinden gelir.
- * - Scan mode bilgisi chrome.storage.local içindeki adaptive_rag_scan_settings kaydından okunur.
+ * Not:
+ * - Bu dosya event bağlamaz.
+ * - Buton click işlemleri source-events.js içinde yapılır.
+ * - Mock veri içermez.
  */
 
 (function () {
+  if (window.AdaptiveRagSourcesTab?.__tabName === "sources-tab") {
+    return;
+  }
+
   const SCAN_SETTINGS_KEY = "adaptive_rag_scan_settings";
 
   let scanModeCache = "manual";
 
-  /**
-   * Aynı dosyanın tekrar inject edilmesini engeller.
-   */
-  if (window.AdaptiveRagSourcesTab?.__moduleName === "sources-tab") {
-    return;
-  }
+  function escapeHtml(text) {
+    if (window.AdaptiveRagState?.escapeHtml) {
+      return window.AdaptiveRagState.escapeHtml(text);
+    }
 
-  /**
-   * HTML içine basılacak metinleri güvenli hale getirir.
-   */
-  function escapeHtml(value) {
-    return String(value || "")
+    return String(text || "")
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
@@ -38,38 +34,47 @@
       .replaceAll("'", "&#039;");
   }
 
-  /**
-   * Uzun metinleri kart içinde daha okunabilir göstermek için kısaltır.
-   */
-  function truncateText(value, maxLength = 180) {
-    const text = String(value || "").trim();
-
-    if (text.length <= maxLength) {
-      return text;
+  function trimText(text, maxLength = 180) {
+    if (window.AdaptiveRagState?.trimText) {
+      return window.AdaptiveRagState.trimText(text, maxLength);
     }
 
-    return `${text.slice(0, maxLength)}...`;
+    const value = String(text || "").trim();
+
+    if (value.length <= maxLength) {
+      return value;
+    }
+
+    return `${value.slice(0, maxLength)}...`;
   }
 
-  /**
-   * URL bilgisini kısa ve okunabilir hale getirir.
-   */
+  function getResearchData() {
+    if (window.AdaptiveRagState?.getResearchData) {
+      return window.AdaptiveRagState.getResearchData();
+    }
+
+    if (window.AdaptiveRagStore?.getResearchData) {
+      return window.AdaptiveRagStore.getResearchData();
+    }
+
+    return {
+      pages: [],
+      notes: {
+        generalSummary: ""
+      },
+      timeline: []
+    };
+  }
+
   function getShortUrl(url) {
     try {
       const parsedUrl = new URL(url);
       return parsedUrl.hostname.replace("www.", "");
-    } catch (error) {
+    } catch {
       return url || "";
     }
   }
 
-  /**
-   * Storage içinden tarama modunu okur.
-   *
-   * Not:
-   * - Render fonksiyonu senkron çalıştığı için değer cache'e alınır.
-   * - Değer sonradan değişirse chrome.storage.onChanged ile cache güncellenir.
-   */
   function loadScanMode() {
     chrome.storage.local.get([SCAN_SETTINGS_KEY], (result) => {
       const settings = result[SCAN_SETTINGS_KEY];
@@ -84,9 +89,6 @@
     });
   }
 
-  /**
-   * Popup üzerinden scan mode değişirse Kaynaklar sekmesini güncel tutar.
-   */
   chrome.storage?.onChanged?.addListener((changes, areaName) => {
     if (areaName !== "local") {
       return;
@@ -107,256 +109,159 @@
     }
   });
 
-  /**
-   * Kaynaklar sekmesinin ana render fonksiyonu.
-   */
   function renderSourcesTab() {
-    const data = window.AdaptiveRagStore?.getResearchData
-      ? window.AdaptiveRagStore.getResearchData()
-      : {
-          pages: [],
-          timeline: []
-        };
+    const researchData = getResearchData();
+    const pages = Array.isArray(researchData.pages) ? researchData.pages : [];
 
-    const openedPageId = window.AdaptiveRagState?.getOpenedPageId?.();
-
-    const pages = Array.isArray(data.pages) ? data.pages : [];
-    const timeline = Array.isArray(data.timeline) ? data.timeline : [];
-
-    const pageCards = pages
-      .map((page) => renderSourceCard(page, openedPageId))
-      .join("");
-
-    const timelineItems = timeline
-      .map((item) => renderTimelineItem(item))
-      .join("");
+    const pagesHtml = pages.length
+      ? pages.map(renderSourceCard).join("")
+      : renderEmptySources();
 
     return `
-      <section class="rag-section rag-sources-section">
+      <div class="rag-sources-layout">
         ${renderSourcesHeader(pages.length)}
 
         <div class="rag-source-list">
-          ${pageCards || renderEmptySources()}
+          ${pagesHtml}
         </div>
-
-        ${renderTimeline(timelineItems)}
-      </section>
+      </div>
     `;
   }
 
-  /**
-   * Kaynaklar sekmesinin üst başlık alanını render eder.
-   *
-   * Elle tarama modunda:
-   * - Sayfayı tara butonu görünür.
-   *
-   * Otomatik tarama modunda:
-   * - Buton gizlenir.
-   */
   function renderSourcesHeader(pageCount) {
-    const scanButton =
-      scanModeCache === "manual"
-        ? `
-          <button
-            type="button"
-            id="scanCurrentPageBtn"
-            class="rag-scan-current-btn"
-          >
-            Sayfayı tara
-          </button>
-        `
-        : "";
-
-    const modeText =
-      scanModeCache === "auto"
-        ? "Otomatik tarama aktif. Uygun sayfalar arka planda eklenir."
-        : "Elle tarama aktif. İstersen mevcut sayfayı kaynaklara ekleyebilirsin.";
+    const isManualMode = scanModeCache === "manual";
 
     return `
-      <div class="rag-section-title rag-sources-header">
+      <div class="rag-section-head">
         <div>
           <h3>Kaynaklar</h3>
-          <p class="rag-section-subtitle">
-            ${escapeHtml(modeText)}
+          <p>
+            ${
+              isManualMode
+                ? "Elle tarama aktif. Mevcut sayfayı kaynaklara ekleyebilirsin."
+                : "Otomatik tarama aktif. Uygun sayfalar arka planda eklenir."
+            }
           </p>
         </div>
 
-        ${scanButton}
+        ${
+          isManualMode
+            ? `
+              <button
+                id="scanCurrentPageBtn"
+                class="rag-primary-btn small"
+                type="button"
+              >
+                Sayfayı tara
+              </button>
+            `
+            : ""
+        }
       </div>
 
-      <div class="rag-source-stats">
-        <span>${pageCount} sayfa</span>
-        <span>${scanModeCache === "auto" ? "Otomatik mod" : "Elle mod"}</span>
+      <div class="rag-small-info">
+        ${pageCount} sayfa · ${isManualMode ? "Elle mod" : "Otomatik mod"}
       </div>
     `;
   }
 
-  /**
-   * Taranan tek bir sayfayı kart olarak render eder.
-   */
-  function renderSourceCard(page, openedPageId) {
-    const isOpen = openedPageId === page.id;
-
-    const title = escapeHtml(page.title || "Başlıksız sayfa");
-    const summary = escapeHtml(
-      truncateText(page.summary || "Bu sayfa için özet henüz oluşmadı.", 190)
-    );
-    const scannedAt = escapeHtml(page.scannedAt || "");
-    const shortUrl = escapeHtml(getShortUrl(page.url));
-    const chunkCount = Array.isArray(page.chunks) ? page.chunks.length : 0;
+  function renderSourceCard(page) {
+    const chunks = Array.isArray(page.chunks) ? page.chunks : [];
+    const chunkCount = chunks.length;
 
     return `
-      <article class="rag-source-card ${isOpen ? "open" : ""}">
-        <button
-          type="button"
-          class="rag-source-main"
-          data-page-id="${escapeHtml(page.id)}"
-          aria-expanded="${isOpen ? "true" : "false"}"
-        >
-          <div class="rag-source-main-content">
-            <div class="rag-source-card-top">
-              <span class="rag-source-domain">${shortUrl || "Kaynak"}</span>
-              <span class="rag-source-date">${scannedAt}</span>
-            </div>
+      <article class="rag-source-card open">
+        <div class="rag-source-card-head">
+          <div>
+            <strong>${escapeHtml(page.title || "Başlıksız Sayfa")}</strong>
+            <span>${escapeHtml(page.scannedAt || "")}</span>
+          </div>
+        </div>
 
-            <h3>${title}</h3>
+        <div class="rag-source-card-body">
+          <p class="rag-source-summary">
+            ${escapeHtml(trimText(page.summary || "Bu kaynak için özet bulunmuyor.", 220))}
+          </p>
 
-            <p>${summary}</p>
-
-            <div class="rag-source-meta">
-              <span>${chunkCount} parça</span>
-            </div>
+          <div class="rag-source-url">
+            ${escapeHtml(getShortUrl(page.url || ""))}
           </div>
 
-          <strong class="rag-source-toggle">
-            ${isOpen ? "Detayı kapat" : "Detayı aç"}
-          </strong>
-        </button>
+          <div class="rag-small-info">
+            Parça sayısı: ${chunkCount}
+          </div>
 
-        ${isOpen ? renderSourceDetail(page) : ""}
+          ${renderSourceChunks(chunks)}
+
+          ${
+            page.url
+              ? `
+                <button
+                  class="rag-secondary-btn rag-open-source-btn"
+                  type="button"
+                  data-url="${escapeHtml(page.url)}"
+                >
+                  Siteye git
+                </button>
+              `
+              : ""
+          }
+        </div>
       </article>
     `;
   }
 
-  /**
-   * Açılan kaynak kartının detay alanını render eder.
-   */
-  function renderSourceDetail(page) {
-    const chunks = Array.isArray(page.chunks) ? page.chunks : [];
+  function renderSourceChunks(chunks) {
+    if (!Array.isArray(chunks) || chunks.length === 0) {
+      return "";
+    }
 
-    const chunkCards = chunks
-      .map((chunk, index) => renderChunkCard(chunk, index))
-      .join("");
+    const firstChunks = chunks.slice(0, 3);
 
     return `
-      <div class="rag-source-detail">
-        <div class="rag-source-url">
-          <span>Kaynak:</span>
-          ${
-            page.url
-              ? `<a href="${escapeHtml(page.url)}" target="_blank" rel="noreferrer">${escapeHtml(page.url)}</a>`
-              : `<p>Kaynak URL bilgisi bulunamadı.</p>`
-          }
-        </div>
+      <div class="rag-chunks">
+        <div class="rag-subtitle">Kaynak parçaları</div>
 
-        <div class="rag-source-detail-head">
-          <h4>Kaynak parçaları</h4>
-          <span>${chunks.length} chunk</span>
-        </div>
+        ${firstChunks.map(renderChunkCard).join("")}
 
-        <div class="rag-chunk-list">
-          ${chunkCards || renderEmptyChunks()}
-        </div>
+        ${
+          chunks.length > 3
+            ? `<div class="rag-small-info">+${chunks.length - 3} parça daha var.</div>`
+            : ""
+        }
       </div>
     `;
   }
 
-  /**
-   * Tek bir chunk kartını render eder.
-   */
-  function renderChunkCard(chunk, index) {
-    const text = escapeHtml(truncateText(chunk.text || "", 260));
-    const selector = escapeHtml(chunk.sourceSelector || "");
+  function renderChunkCard(chunk) {
+    const text = chunk.text || chunk.content || "";
 
     return `
       <div class="rag-chunk-card">
-        <span class="rag-small-label">Parça ${index + 1}</span>
-
-        <p>${text}</p>
-
-        <button
-          type="button"
-          class="rag-highlight-btn"
-          data-selector="${selector}"
-          ${selector ? "" : "disabled"}
-        >
-          Kaynağa git / highlight
-        </button>
+        <p>${escapeHtml(trimText(text, 220))}</p>
       </div>
     `;
   }
 
-  /**
-   * Hiç chunk yoksa gösterilecek boş durum.
-   */
-  function renderEmptyChunks() {
-    return `
-      <div class="rag-empty-mini">
-        Bu sayfa için kaynak parçası bulunamadı.
-      </div>
-    `;
-  }
-
-  /**
-   * Hiç sayfa taranmadığında gösterilecek boş durum.
-   */
   function renderEmptySources() {
-    const description =
-      scanModeCache === "auto"
-        ? "Otomatik mod açık. Uygun bir sayfaya girdiğinde kaynaklar burada görünecek."
-        : "Henüz bu oturumda taranan sayfa yok. Mevcut sayfayı tarayarak kaynak ekleyebilirsin.";
+    const text =
+      scanModeCache === "manual"
+        ? "Henüz kaynak yok. Sayfayı tara butonuyla mevcut sayfayı ekleyebilirsin."
+        : "Henüz kaynak yok. Otomatik tarama uygun sayfalarda kaynak ekleyecek.";
 
     return `
       <div class="rag-empty-state">
-        <h3>Kaynak yok</h3>
-        <p>${escapeHtml(description)}</p>
+        <strong>Henüz kaynak yok.</strong>
+        <span>${escapeHtml(text)}</span>
       </div>
-    `;
-  }
-
-  /**
-   * Zaman çizelgesi alanını render eder.
-   *
-   * Eğer hiç işlem yoksa sahte veri göstermez.
-   */
-  function renderTimeline(timelineItems) {
-    return `
-      <div class="rag-timeline">
-        <h3>Zaman çizelgesi</h3>
-
-        <ul>
-          ${timelineItems || `<li class="rag-timeline-empty"><p>Henüz işlem yok.</p></li>`}
-        </ul>
-      </div>
-    `;
-  }
-
-  /**
-   * Tek bir timeline kaydını render eder.
-   */
-  function renderTimelineItem(item) {
-    return `
-      <li>
-        <span>${escapeHtml(item.time || "")}</span>
-        <p>${escapeHtml(item.title || "")}</p>
-      </li>
     `;
   }
 
   loadScanMode();
 
   window.AdaptiveRagSourcesTab = {
-    __moduleName: "sources-tab",
+    __tabName: "sources-tab",
+
     renderSourcesTab,
     loadScanMode
   };

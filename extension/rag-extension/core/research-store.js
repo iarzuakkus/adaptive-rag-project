@@ -2,96 +2,48 @@
  * Dosya: research-store.js
  *
  * Görev:
- * - Aktif araştırma oturumuna ait kaynak verilerini yönetir.
- * - Taranan sayfaları, chunk'ları, notları, alıntıları, önerileri ve zaman çizelgesini saklar.
+ * - Aktif Adaptive RAG oturumuna ait kaynak ve not verilerini saklar.
  * - Verileri sessionId bazlı chrome.storage.local içinde tutar.
- * - Sayfa yenilense bile aktif sessionId devam ettiği sürece kaynaklar kaybolmaz.
+ * - Bu dosya yeni session oluşturmaz.
  *
- * Önemli:
- * - Bu dosya session oluşturmaz.
- * - Session kimliği ve oturum yaşam döngüsü session-store.js tarafından yönetilir.
- * - Bu dosya sadece aktif sessionId'ye bağlı araştırma verilerini saklar.
- * - Sahte/mock veri içermez.
+ * Tuttuğu veriler:
+ * - Taranan sayfalar
+ * - Sayfa chunk'ları
+ * - Genel özet notu
+ * - Timeline
  */
 
 (function () {
+  if (window.AdaptiveRagStore?.__storeName === "research-store") {
+    return;
+  }
+
   const RESEARCH_STORE_KEY = "adaptive_rag_research_data_by_session";
 
   let activeSessionIdCache = null;
   let researchCache = createEmptyResearchData();
-  let isStoreInitialized = false;
+  let isStoreReady = false;
 
-  /**
-   * Aynı dosyanın tekrar inject edilmesini engeller.
-   *
-   * Popup.js widget dosyalarını tekrar inject edebilir.
-   * Bu kontrol, store'un gereksiz yere yeniden tanımlanmasını azaltır.
-   */
-  if (window.AdaptiveRagStore?.__storeName === "session-based-research-store") {
-    return;
-  }
+  /* -------------------- Storage -------------------- */
 
-  /**
-   * Boş araştırma verisi oluşturur.
-   *
-   * Bu yapı kesinlikle örnek veri içermez.
-   * Kullanıcı hiçbir sayfa taramadıysa Kaynaklar sekmesi boş görünür.
-   */
-  function createEmptyResearchData() {
-    return {
-      pages: [],
-
-      notes: {
-        generalSummary: "",
-        quotes: [],
-        recommendations: []
-      },
-
-      timeline: []
-    };
-  }
-
-  /**
-   * Güvenli unique id üretir.
-   */
-  function createId(prefix = "item") {
-    if (crypto?.randomUUID) {
-      return `${prefix}-${crypto.randomUUID()}`;
-    }
-
-    return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  }
-
-  /**
-   * Storage okuma işlemini Promise formatına çevirir.
-   */
-  function getFromStorage(key) {
+  function getStorageValue(key, defaultValue = null) {
     return new Promise((resolve) => {
       chrome.storage.local.get([key], (result) => {
-        resolve(result[key]);
+        resolve(result[key] ?? defaultValue);
       });
     });
   }
 
-  /**
-   * Storage yazma işlemini Promise formatına çevirir.
-   */
-  function setToStorage(key, value) {
+  function setStorageValue(key, value) {
     return new Promise((resolve) => {
-      chrome.storage.local.set(
-        {
-          [key]: value
-        },
-        () => resolve(value)
-      );
+      chrome.storage.local.set({ [key]: value }, () => {
+        resolve(value);
+      });
     });
   }
 
-  /**
-   * Tüm sessionId'lere ait research verilerini getirir.
-   */
   async function getAllResearchSessions() {
-    const allData = await getFromStorage(RESEARCH_STORE_KEY);
+    const allData = await getStorageValue(RESEARCH_STORE_KEY, {});
 
     if (!allData || typeof allData !== "object" || Array.isArray(allData)) {
       return {};
@@ -100,34 +52,22 @@
     return allData;
   }
 
-  /**
-   * Tüm sessionId'lere ait research verilerini kaydeder.
-   */
   async function saveAllResearchSessions(allData) {
-    return await setToStorage(RESEARCH_STORE_KEY, allData);
+    return await setStorageValue(RESEARCH_STORE_KEY, allData);
   }
 
-  /**
-   * Aktif sessionId değerini session-store.js üzerinden alır.
-   *
-   * Aktif oturum yoksa yeni aktif oturum başlatır.
-   * Böylece research verisi her zaman bir sessionId altında tutulur.
-   */
-  async function getActiveSessionId() {
-    if (!window.AdaptiveRagSessionStore?.ensureActiveSession) {
-      console.warn("[RESEARCH STORE] AdaptiveRagSessionStore bulunamadı.");
+  /* -------------------- Temel Veri Yapısı -------------------- */
 
-      return null;
-    }
-
-    const session = await window.AdaptiveRagSessionStore.ensureActiveSession();
-
-    return session?.id || null;
+  function createEmptyResearchData() {
+    return {
+      pages: [],
+      notes: {
+        generalSummary: ""
+      },
+      timeline: []
+    };
   }
 
-  /**
-   * Eksik veya bozuk research datasını güvenli formata dönüştürür.
-   */
   function normalizeResearchData(data) {
     const emptyData = createEmptyResearchData();
 
@@ -139,30 +79,39 @@
       pages: Array.isArray(data.pages) ? data.pages : [],
 
       notes: {
-        generalSummary: data.notes?.generalSummary || "",
-        quotes: Array.isArray(data.notes?.quotes) ? data.notes.quotes : [],
-        recommendations: Array.isArray(data.notes?.recommendations)
-          ? data.notes.recommendations
-          : []
+        generalSummary: data.notes?.generalSummary || ""
       },
 
       timeline: Array.isArray(data.timeline) ? data.timeline : []
     };
   }
 
-  /**
-   * Aktif sessionId için research store'u başlatır.
-   *
-   * Eğer bu sessionId için daha önce veri varsa onu yükler.
-   * Yoksa boş research data oluşturur.
-   */
+  function createId(prefix = "item") {
+    if (window.crypto?.randomUUID) {
+      return `${prefix}-${crypto.randomUUID()}`;
+    }
+
+    return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  /* -------------------- Session Bağlantısı -------------------- */
+
+  async function getCurrentSessionId() {
+    if (!window.AdaptiveRagSessionStore?.getActiveSessionId) {
+      console.warn("[RESEARCH STORE] Session store bulunamadı.");
+      return null;
+    }
+
+    return await window.AdaptiveRagSessionStore.getActiveSessionId();
+  }
+
   async function initResearchSession(sessionId = null) {
-    const targetSessionId = sessionId || await getActiveSessionId();
+    const targetSessionId = sessionId || await getCurrentSessionId();
 
     if (!targetSessionId) {
-      researchCache = createEmptyResearchData();
       activeSessionIdCache = null;
-      isStoreInitialized = false;
+      researchCache = createEmptyResearchData();
+      isStoreReady = false;
 
       return researchCache;
     }
@@ -171,7 +120,7 @@
 
     activeSessionIdCache = targetSessionId;
     researchCache = normalizeResearchData(allSessions[targetSessionId]);
-    isStoreInitialized = true;
+    isStoreReady = true;
 
     if (!allSessions[targetSessionId]) {
       allSessions[targetSessionId] = researchCache;
@@ -181,95 +130,66 @@
     return researchCache;
   }
 
-  /**
-   * Store başlatılmadıysa güvenli şekilde başlatır.
-   */
   async function ensureResearchSession() {
-    if (isStoreInitialized && activeSessionIdCache) {
+    if (isStoreReady && activeSessionIdCache) {
       return researchCache;
     }
 
     return await initResearchSession();
   }
 
-  /**
-   * Widget render tarafının kullandığı senkron getter.
-   *
-   * Not:
-   * - Bu fonksiyon storage okumaz.
-   * - Cache'teki güncel veriyi döndürür.
-   * - Widget açılırken önce initResearchSession() çağrılmalıdır.
-   */
   function getResearchData() {
     return normalizeResearchData(researchCache);
   }
 
-  /**
-   * Research verisini aktif sessionId altında kaydeder.
-   *
-   * Fonksiyon senkron gibi kullanılabilir.
-   * Storage yazma işlemi arka planda async yapılır.
-   */
-  function saveResearchData(data) {
-    researchCache = normalizeResearchData(data);
-    isStoreInitialized = true;
+  async function saveResearchData(data, sessionId = null) {
+    const targetSessionId = sessionId || activeSessionIdCache || await getCurrentSessionId();
 
-    if (!activeSessionIdCache) {
-      ensureResearchSession().then(() => saveResearchData(researchCache));
+    researchCache = normalizeResearchData(data);
+
+    if (!targetSessionId) {
+      activeSessionIdCache = null;
+      isStoreReady = false;
       return researchCache;
     }
 
-    getAllResearchSessions().then((allSessions) => {
-      allSessions[activeSessionIdCache] = researchCache;
-      saveAllResearchSessions(allSessions);
-    });
+    const allSessions = await getAllResearchSessions();
+
+    allSessions[targetSessionId] = researchCache;
+
+    await saveAllResearchSessions(allSessions);
+
+    activeSessionIdCache = targetSessionId;
+    isStoreReady = true;
 
     return researchCache;
   }
 
-  /**
-   * Chunk verilerini Kaynaklar sekmesinin beklediği formata dönüştürür.
-   */
+  /* -------------------- Sayfa Kaydetme -------------------- */
+
   function normalizeChunks(chunks) {
     if (!Array.isArray(chunks)) {
       return [];
     }
 
     return chunks
-      .map((chunk, index) => {
+      .map((chunk) => {
         if (typeof chunk === "string") {
           return {
             id: createId("chunk"),
-            text: chunk,
-            sourceSelector: ""
+            text: chunk
           };
         }
 
         return {
           id: chunk.id || createId("chunk"),
-          text: chunk.text || chunk.content || "",
-          sourceSelector:
-            chunk.sourceSelector ||
-            chunk.selector ||
-            chunk.metadata?.sourceSelector ||
-            ""
+          text: chunk.text || chunk.content || ""
         };
       })
       .filter((chunk) => chunk.text.trim().length > 0);
   }
 
-  /**
-   * Sayfa özetini güvenli şekilde üretir.
-   *
-   * Backend özet döndürmediyse:
-   * - page.summary
-   * - page.preview
-   * - ilk chunk metni
-   * sırasıyla denenir.
-   *
-   * Hiçbiri yoksa boş string döner.
-   */
-  function getPageSummary(page, normalizedChunks) {
+  function createPageSummary(page, chunks) {
     if (page.summary) {
       return page.summary;
     }
@@ -278,116 +198,88 @@
       return page.preview;
     }
 
-    if (normalizedChunks.length > 0) {
-      const firstChunkText = normalizedChunks[0].text || "";
+    const firstChunkText = chunks[0]?.text || "";
 
-      if (firstChunkText.length > 180) {
-        return `${firstChunkText.slice(0, 180)}...`;
-      }
-
-      return firstChunkText;
+    if (firstChunkText.length > 180) {
+      return `${firstChunkText.slice(0, 180)}...`;
     }
 
-    return "";
+    return firstChunkText;
   }
 
-  /**
-   * Taranan sayfayı aktif araştırma oturumuna ekler.
-   *
-   * Aynı URL daha önce eklenmişse:
-   * - Yeni kart oluşturmaz.
-   * - Mevcut kartı günceller.
-   * - Kartı listenin en üstüne taşır.
-   */
-  function addScannedPage(page) {
-    if (!isStoreInitialized || !activeSessionIdCache) {
-      ensureResearchSession().then(() => addScannedPage(page));
+  async function addScannedPage(page = {}) {
+    await ensureResearchSession();
 
-      return {
-        id: createId("page"),
-        title: page.title || document.title || "Başlıksız Sayfa",
-        url: page.url || window.location.href || "",
-        summary: page.summary || page.preview || "",
-        scannedAt: new Date().toLocaleString("tr-TR"),
-        chunks: []
-      };
+    if (!activeSessionIdCache) {
+      console.warn("[RESEARCH STORE] Aktif session yok. Sayfa kaydedilmedi.");
+      return null;
     }
 
     const data = getResearchData();
     const scannedAt = new Date().toLocaleString("tr-TR");
-    const normalizedChunks = normalizeChunks(page.chunks || page.blockChunks || []);
+    const chunks = normalizeChunks(page.chunks || page.blockChunks || []);
 
-    const newPage = {
+    const nextPage = {
       id: page.id || createId("page"),
       sessionId: activeSessionIdCache,
       title: page.title || document.title || "Başlıksız Sayfa",
       url: page.url || window.location.href || "",
-      summary: getPageSummary(page, normalizedChunks),
+      summary: createPageSummary(page, chunks),
       scannedAt,
-      chunks: normalizedChunks
+      chunks
     };
 
-    const existingPageIndex = data.pages.findIndex((item) => item.url === newPage.url);
+    const existingIndex = data.pages.findIndex((item) => {
+      return item.url === nextPage.url;
+    });
 
-    if (existingPageIndex !== -1) {
-      const existingPage = data.pages[existingPageIndex];
+    if (existingIndex !== -1) {
+      const existingPage = data.pages[existingIndex];
 
-      const updatedPage = {
+      data.pages.splice(existingIndex, 1);
+
+      data.pages.unshift({
         ...existingPage,
-        ...newPage,
-        id: existingPage.id,
-        sessionId: activeSessionIdCache,
-        scannedAt
-      };
-
-      data.pages.splice(existingPageIndex, 1);
-      data.pages.unshift(updatedPage);
+        ...nextPage,
+        id: existingPage.id
+      });
 
       data.timeline.unshift({
         id: createId("time"),
-        sessionId: activeSessionIdCache,
         type: "scan-update",
-        title: `${updatedPage.title} sayfası güncellendi`,
+        title: `${nextPage.title} sayfası güncellendi`,
         time: scannedAt
       });
 
-      saveResearchData(data);
+      await saveResearchData(data);
 
-      return updatedPage;
+      return data.pages[0];
     }
 
-    data.pages.unshift(newPage);
+    data.pages.unshift(nextPage);
 
     data.timeline.unshift({
       id: createId("time"),
-      sessionId: activeSessionIdCache,
       type: "scan",
-      title: `${newPage.title} sayfası tarandı`,
+      title: `${nextPage.title} sayfası tarandı`,
       time: scannedAt
     });
 
-    saveResearchData(data);
+    await saveResearchData(data);
 
-    return newPage;
+    return nextPage;
   }
 
-  /**
-   * Aktif oturuma ait research verisini temizler.
-   *
-   * Baloncuk kapatılırken çağrılmalıdır.
-   * Sadece aktif sessionId'nin verisini siler.
-   */
+  /* -------------------- Temizleme -------------------- */
+
   async function clearResearchSession(sessionId = null) {
-    const targetSessionId =
-      sessionId ||
-      activeSessionIdCache ||
-      await getActiveSessionId();
+    const targetSessionId = sessionId || activeSessionIdCache;
+
+    researchCache = createEmptyResearchData();
 
     if (!targetSessionId) {
-      researchCache = createEmptyResearchData();
       activeSessionIdCache = null;
-      isStoreInitialized = false;
-
+      isStoreReady = false;
       return true;
     }
 
@@ -398,48 +290,40 @@
     await saveAllResearchSessions(allSessions);
 
     if (targetSessionId === activeSessionIdCache) {
-      researchCache = createEmptyResearchData();
       activeSessionIdCache = null;
-      isStoreInitialized = false;
+      isStoreReady = false;
     }
 
     return true;
   }
 
-  /**
-   * Aktif oturum için research verisini sıfırlar.
-   *
-   * Session devam eder ama kaynaklar/notlar/timeline boşaltılır.
-   */
   async function resetResearchSession(sessionId = null) {
-    const targetSessionId =
-      sessionId ||
-      activeSessionIdCache ||
-      await getActiveSessionId();
+    const targetSessionId = sessionId || activeSessionIdCache || await getCurrentSessionId();
+
+    researchCache = createEmptyResearchData();
 
     if (!targetSessionId) {
-      return createEmptyResearchData();
+      activeSessionIdCache = null;
+      isStoreReady = false;
+      return researchCache;
     }
 
     const allSessions = await getAllResearchSessions();
-    const emptyData = createEmptyResearchData();
 
-    allSessions[targetSessionId] = emptyData;
+    allSessions[targetSessionId] = researchCache;
 
     await saveAllResearchSessions(allSessions);
 
     activeSessionIdCache = targetSessionId;
-    researchCache = emptyData;
-    isStoreInitialized = true;
+    isStoreReady = true;
 
     return researchCache;
   }
 
-  /**
-   * Dışarı açılan research store API'si.
-   */
+  /* -------------------- Dış API -------------------- */
+
   window.AdaptiveRagStore = {
-    __storeName: "session-based-research-store",
+    __storeName: "research-store",
 
     initResearchSession,
     ensureResearchSession,

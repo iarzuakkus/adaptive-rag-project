@@ -2,64 +2,45 @@
  * Dosya: scan-prompt.js
  *
  * Görev:
- * - Sayfaya girildiğinde sağ yandan çıkan küçük tarama öneri kartını oluşturur.
- * - Kullanıcıya “Bu sayfayı tara?” seçeneği sunar.
- * - Tik butonu ile taramayı başlatır.
- * - Çarpı butonu ile öneri kartını kapatır.
- *
- * Not:
- * - Bu kart ana widget değildir.
- * - Sadece sayfa tarama önerisi için küçük ve bağımsız bir UI bileşenidir.
+ * - Manuel tarama modunda sağ yanda "Bu sayfayı tara?" kartını gösterir.
+ * - Kart üzerindeki "Sayfayı tara" butonu ile content.js içindeki tarama akışını başlatır.
+ * - Kart üzerindeki çarpı butonu ile kartı kapatır.
  */
 
 (function () {
-  const SCAN_PROMPT_ID = "adaptive-rag-scan-prompt";
-  const SCAN_PROMPT_STYLE_ID = "adaptive-rag-scan-prompt-style";
+  if (window.AdaptiveRagScanPrompt?.__moduleName === "scan-prompt") {
+    return;
+  }
 
-  /**
-   * Tarama öneri kartı için gerekli CSS'i sayfaya ekler.
-   */
-  function injectScanPromptStyles() {
-    if (document.getElementById(SCAN_PROMPT_STYLE_ID)) {
+  const PROMPT_ID = "adaptive-rag-scan-prompt";
+  const STYLE_ID = "adaptive-rag-scan-prompt-style";
+
+  function injectStyles() {
+    if (document.getElementById(STYLE_ID)) {
       return;
     }
 
     const style = document.createElement("style");
-    style.id = SCAN_PROMPT_STYLE_ID;
+    style.id = STYLE_ID;
 
     style.textContent = `
-      #${SCAN_PROMPT_ID} {
+      #${PROMPT_ID} {
         position: fixed;
         right: 24px;
         top: 110px;
-        width: 292px;
-        z-index: 999998;
+        width: 290px;
+        z-index: 2147483646;
         border-radius: 18px;
+        background: #ffffff;
+        color: #161616;
+        font-family: Arial, sans-serif;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+        border: 1px solid rgba(0, 0, 0, 0.08);
         overflow: hidden;
-        color: #ffffff;
-        font-family: Inter, Arial, sans-serif;
-        background:
-          radial-gradient(circle at top left, rgba(255, 0, 31, 0.28), transparent 38%),
-          radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.24), transparent 38%),
-          linear-gradient(145deg, #09090d 0%, #14141c 100%);
-        border: 1px solid rgba(238, 167, 255, 0.28);
-        box-shadow:
-          0 20px 60px rgba(0, 0, 0, 0.45),
-          0 0 28px rgba(255, 0, 31, 0.14),
-          0 0 30px rgba(238, 167, 255, 0.12);
-        animation: adaptiveRagPromptIn 0.25s ease;
       }
 
-      @keyframes adaptiveRagPromptIn {
-        from {
-          opacity: 0;
-          transform: translateX(20px);
-        }
-
-        to {
-          opacity: 1;
-          transform: translateX(0);
-        }
+      #${PROMPT_ID} * {
+        box-sizing: border-box;
       }
 
       .rag-scan-prompt-inner {
@@ -73,117 +54,119 @@
         gap: 10px;
       }
 
-      .rag-scan-prompt-kicker {
+      .rag-scan-prompt-label {
         display: block;
-        margin-bottom: 4px;
+        margin-bottom: 5px;
         font-size: 11px;
-        font-weight: 800;
-        color: #eea7ff;
+        font-weight: 700;
+        color: #ff001f;
       }
 
       .rag-scan-prompt-title {
         margin: 0;
         font-size: 15px;
-        font-weight: 850;
-        line-height: 1.25;
-        color: #ffffff;
+        font-weight: 800;
+        line-height: 1.3;
       }
 
       .rag-scan-prompt-desc {
         margin: 8px 0 0;
         font-size: 12px;
         line-height: 1.45;
-        color: rgba(255, 255, 255, 0.68);
+        color: #555;
       }
 
       .rag-scan-prompt-close {
-        width: 30px;
-        height: 30px;
-        border: 1px solid rgba(238, 167, 255, 0.22);
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.06);
-        color: #ffffff;
+        width: 28px;
+        height: 28px;
+        border: none;
+        border-radius: 9px;
+        background: #f3f3f3;
+        color: #333;
         font-size: 20px;
-        line-height: 1;
         cursor: pointer;
         flex-shrink: 0;
       }
 
       .rag-scan-prompt-close:hover {
-        background: rgba(255, 0, 31, 0.18);
+        background: #eeeeee;
       }
 
       .rag-scan-prompt-actions {
-        display: flex;
-        gap: 8px;
         margin-top: 12px;
       }
 
       .rag-scan-prompt-scan {
-        flex: 1;
+        width: 100%;
         border: none;
         border-radius: 999px;
-        padding: 9px 12px;
+        padding: 10px 12px;
         font-size: 12px;
-        font-weight: 850;
+        font-weight: 800;
         color: #ffffff;
         background: linear-gradient(135deg, #ff001f 0%, #eea7ff 100%);
-        box-shadow:
-          0 10px 24px rgba(255, 0, 31, 0.22),
-          0 0 18px rgba(238, 167, 255, 0.14);
         cursor: pointer;
       }
 
-      .rag-scan-prompt-scan:hover {
-        filter: brightness(1.06);
+      .rag-scan-prompt-scan:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
       }
 
       .rag-scan-prompt-status {
-        margin-top: 10px;
+        margin-top: 9px;
         font-size: 11px;
-        color: rgba(255, 255, 255, 0.62);
+        color: #666;
       }
     `;
 
     document.head.appendChild(style);
   }
 
-  /**
-   * Sayfa başlığını küçük kart içinde taşmayacak şekilde kısaltır.
-   */
-  function getShortPageTitle() {
+  function escapeHtml(text) {
+    return String(text || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function getShortTitle() {
     const title = document.title || "Başlıksız sayfa";
 
-    if (title.length <= 80) {
+    if (title.length <= 78) {
       return title;
     }
 
-    return `${title.slice(0, 80)}...`;
+    return `${title.slice(0, 78)}...`;
   }
 
-  /**
-   * Tarama öneri kartını sayfaya ekler.
-   */
-  function showScanPrompt({ onScan, onClose }) {
-    const existingPrompt = document.getElementById(SCAN_PROMPT_ID);
+  function hideScanPrompt() {
+    document.getElementById(PROMPT_ID)?.remove();
+  }
 
-    if (existingPrompt) {
-      existingPrompt.remove();
-    }
+  function showScanPrompt(options = {}) {
+    const { onScan, onClose } = options;
 
-    injectScanPromptStyles();
+    hideScanPrompt();
+    injectStyles();
 
     const prompt = document.createElement("div");
-    prompt.id = SCAN_PROMPT_ID;
+    prompt.id = PROMPT_ID;
 
     prompt.innerHTML = `
       <div class="rag-scan-prompt-inner">
         <div class="rag-scan-prompt-top">
           <div>
-            <span class="rag-scan-prompt-kicker">Adaptive RAG</span>
-            <h3 class="rag-scan-prompt-title">Bu sayfayı tara?</h3>
+            <span class="rag-scan-prompt-label">Adaptive RAG</span>
+
+            <h3 class="rag-scan-prompt-title">
+              Bu sayfayı tara?
+            </h3>
+
             <p class="rag-scan-prompt-desc">
-              ${getShortPageTitle()} sayfasını araştırma hafızana ekleyebilirsin.
+              ${escapeHtml(getShortTitle())} sayfasını araştırma hafızana ekleyebilirsin.
             </p>
           </div>
 
@@ -191,7 +174,7 @@
             type="button"
             class="rag-scan-prompt-close"
             id="ragScanPromptClose"
-            aria-label="Tarama önerisini kapat"
+            aria-label="Tarama kartını kapat"
           >
             ×
           </button>
@@ -216,7 +199,7 @@
     document.body.appendChild(prompt);
 
     document.getElementById("ragScanPromptClose")?.addEventListener("click", () => {
-      prompt.remove();
+      hideScanPrompt();
 
       if (typeof onClose === "function") {
         onClose();
@@ -227,37 +210,41 @@
       const scanButton = document.getElementById("ragScanPromptScan");
       const status = document.getElementById("ragScanPromptStatus");
 
-      scanButton.disabled = true;
-      scanButton.textContent = "Taranıyor...";
-      status.textContent = "Sayfa içeriği hazırlanıyor.";
-
       try {
+        scanButton.disabled = true;
+        scanButton.textContent = "Taranıyor...";
+
+        if (status) {
+          status.textContent = "Sayfa içeriği hazırlanıyor.";
+        }
+
         if (typeof onScan === "function") {
           await onScan();
         }
 
         scanButton.textContent = "Tarandı";
-        status.textContent = "Sayfa başarıyla araştırma hafızasına eklendi.";
+
+        if (status) {
+          status.textContent = "Sayfa araştırma hafızasına eklendi.";
+        }
 
         setTimeout(() => {
-          prompt.remove();
-        }, 1200);
+          hideScanPrompt();
+        }, 1000);
       } catch (error) {
         scanButton.disabled = false;
         scanButton.textContent = "Tekrar dene";
-        status.textContent = error.message || "Tarama sırasında hata oluştu.";
+
+        if (status) {
+          status.textContent = error.message || "Tarama sırasında hata oluştu.";
+        }
       }
     });
   }
 
-  /**
-   * Tarama öneri kartını dışarıdan kapatmak için kullanılır.
-   */
-  function hideScanPrompt() {
-    document.getElementById(SCAN_PROMPT_ID)?.remove();
-  }
-
   window.AdaptiveRagScanPrompt = {
+    __moduleName: "scan-prompt",
+
     showScanPrompt,
     hideScanPrompt
   };
