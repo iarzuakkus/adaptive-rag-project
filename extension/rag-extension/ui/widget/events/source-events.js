@@ -16,34 +16,41 @@
     return;
   }
 
+  let lastRenderActiveTab = null;
+
   function bindSourceEvents(renderActiveTab) {
-    bindScanCurrentPageButton(renderActiveTab);
-    bindOpenSourceButtons();
-  }
+    lastRenderActiveTab = renderActiveTab;
 
-  function bindScanCurrentPageButton(renderActiveTab) {
-    const scanButton = document.getElementById("scanCurrentPageBtn");
-
-    if (!scanButton) {
+    if (document.body.dataset.ragSourceEventsBound === "1") {
       return;
     }
 
-    scanButton.addEventListener("click", async () => {
-      await handleScanCurrentPage(scanButton, renderActiveTab);
-    });
-  }
+    document.body.dataset.ragSourceEventsBound = "1";
 
-  function bindOpenSourceButtons() {
-    document.querySelectorAll(".rag-open-source-btn").forEach((button) => {
-      button.addEventListener("click", () => {
-        const url = button.dataset.url;
+    document.addEventListener("click", async (event) => {
+      const scanButton = event.target.closest(
+        "#scanCurrentPageBtn, [data-rag-action='scan-current-page']"
+      );
+
+      if (scanButton) {
+        event.preventDefault();
+        await handleScanCurrentPage(scanButton, lastRenderActiveTab);
+        return;
+      }
+
+      const openButton = event.target.closest(".rag-open-source-btn");
+
+      if (openButton) {
+        event.preventDefault();
+
+        const url = openButton.dataset.url;
 
         if (!url) {
           return;
         }
 
         window.open(url, "_blank", "noopener,noreferrer");
-      });
+      }
     });
   }
 
@@ -59,36 +66,74 @@
   }
 
   function getPageScanRunner() {
-    if (window.AdaptiveRagPageScanner?.runPageScan) {
-      return window.AdaptiveRagPageScanner.runPageScan;
-    }
+    const scanRunners = [
+      window.AdaptiveRagPageScanner?.runPageScan,
+      window.AdaptiveRagScanPrompt?.runPageScan,
+      window.AdaptiveRagScanPrompt?.scanCurrentPage,
+      window.AdaptiveRagContentScanner?.runPageScan,
+      window.runPageScan
+    ];
 
-    if (typeof window.runPageScan === "function") {
-      return window.runPageScan;
-    }
-
-    return null;
+    return scanRunners.find((runner) => typeof runner === "function") || null;
   }
 
   async function prepareStoresBeforeScan() {
-    if (window.AdaptiveRagState?.prepareSession) {
-      return await window.AdaptiveRagState.prepareSession();
-    }
+    try {
+      if (window.AdaptiveRagState?.prepareSession) {
+        const preparedSession = await window.AdaptiveRagState.prepareSession();
 
-    if (window.AdaptiveRagSessionStore?.ensureActiveSession) {
-      const session = await window.AdaptiveRagSessionStore.ensureActiveSession();
+        if (preparedSession === false) {
+          return false;
+        }
 
-      if (window.AdaptiveRagStore?.initResearchSession && session?.id) {
-        await window.AdaptiveRagStore.initResearchSession(session.id);
+        return true;
       }
 
-      return Boolean(session?.id);
+      if (window.AdaptiveRagSessionStore?.ensureActiveSession) {
+        const session = await window.AdaptiveRagSessionStore.ensureActiveSession();
+
+        if (!session?.id) {
+          return false;
+        }
+
+        if (window.AdaptiveRagStore?.initResearchSession) {
+          await window.AdaptiveRagStore.initResearchSession(session.id);
+        }
+
+        return true;
+      }
+
+      return true;
+    } catch (error) {
+      console.error("[SOURCE EVENTS] Oturum hazırlama hatası:", error);
+      return false;
+    }
+  }
+
+  async function markCurrentUrlAsScanned() {
+    if (!window.AdaptiveRagScanSettingsStore?.markUrlScanned) {
+      return;
     }
 
-    return false;
+    await window.AdaptiveRagScanSettingsStore.markUrlScanned(window.location.href);
+  }
+
+  async function refreshSourcesTab(renderActiveTab) {
+    if (typeof renderActiveTab === "function") {
+      await renderActiveTab();
+      return;
+    }
+
+    if (window.AdaptiveRagWidget?.renderActiveTab) {
+      await window.AdaptiveRagWidget.renderActiveTab();
+    }
   }
 
   async function handleScanCurrentPage(scanButton, renderActiveTab) {
+    if (scanButton.dataset.scanning === "1") {
+      return;
+    }
+
     const originalText = scanButton.textContent;
 
     try {
@@ -102,10 +147,20 @@
       const scanRunner = getPageScanRunner();
 
       if (!scanRunner) {
-        alert("Sayfa tarama fonksiyonu bulunamadı. content.js bağlantısını kontrol et.");
+        console.error("[SOURCE EVENTS] Sayfa tarama fonksiyonu bulunamadı.", {
+          AdaptiveRagPageScanner: window.AdaptiveRagPageScanner,
+          AdaptiveRagScanPrompt: window.AdaptiveRagScanPrompt,
+          AdaptiveRagContentScanner: window.AdaptiveRagContentScanner,
+          runPageScan: window.runPageScan
+        });
+
+        alert(
+          "Sayfa tarama fonksiyonu bulunamadı. scan-prompt.js veya content.js içinde runPageScan fonksiyonunun window'a açıldığını kontrol et."
+        );
         return;
       }
 
+      scanButton.dataset.scanning = "1";
       scanButton.disabled = true;
       scanButton.textContent = "Taranıyor...";
 
@@ -117,17 +172,15 @@
 
       const result = await scanRunner("manual-sources-button");
 
-      if (!result?.success) {
+      if (result?.success === false) {
         throw new Error(result?.message || "Sayfa taranamadı.");
       }
 
-      await window.AdaptiveRagScanSettingsStore?.markUrlScanned?.(window.location.href);
+      await markCurrentUrlAsScanned();
 
-      scanButton.textContent = result.skipped ? "Zaten tarandı" : "Tarandı";
+      scanButton.textContent = result?.skipped ? "Zaten tarandı" : "Tarandı";
 
-      if (typeof renderActiveTab === "function") {
-        await renderActiveTab();
-      }
+      await refreshSourcesTab(renderActiveTab);
     } catch (error) {
       console.error("[SOURCE EVENTS] Sayfa tarama hatası:", error);
 
@@ -136,6 +189,7 @@
     } finally {
       setTimeout(() => {
         if (document.body.contains(scanButton)) {
+          scanButton.dataset.scanning = "0";
           scanButton.disabled = false;
           scanButton.textContent = originalText;
         }

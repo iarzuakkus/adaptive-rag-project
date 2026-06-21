@@ -153,6 +153,42 @@
     return firstChunk;
   }
 
+  /* -------------------- Research Store Kontrolü -------------------- */
+
+  function getResearchData() {
+    if (window.AdaptiveRagState?.getResearchData) {
+      return window.AdaptiveRagState.getResearchData();
+    }
+
+    if (window.AdaptiveRagStore?.getResearchData) {
+      return window.AdaptiveRagStore.getResearchData();
+    }
+
+    return {
+      pages: []
+    };
+  }
+
+  function normalizeUrlForCompare(url) {
+    try {
+      const parsedUrl = new URL(url);
+      parsedUrl.hash = "";
+      return parsedUrl.href;
+    } catch {
+      return String(url || "");
+    }
+  }
+
+  function isUrlSavedInCurrentResearchStore(url) {
+    const researchData = getResearchData();
+    const pages = Array.isArray(researchData.pages) ? researchData.pages : [];
+    const normalizedCurrentUrl = normalizeUrlForCompare(url);
+
+    return pages.some((page) => {
+      return normalizeUrlForCompare(page.url) === normalizedCurrentUrl;
+    });
+  }
+
   /* -------------------- Research Store'a Kaydetme -------------------- */
 
   async function prepareResearchStore() {
@@ -211,11 +247,13 @@
     const alreadyScanned =
       await window.AdaptiveRagScanSettingsStore?.isUrlScanned?.(currentUrl);
 
-    if (alreadyScanned) {
+    const alreadySavedInCurrentSession = isUrlSavedInCurrentResearchStore(currentUrl);
+
+    if (alreadyScanned && alreadySavedInCurrentSession) {
       return {
         success: true,
         skipped: true,
-        message: "Bu sayfa daha önce tarandı."
+        message: "Bu sayfa bu oturumdaki kaynaklara zaten eklenmiş."
       };
     }
 
@@ -233,6 +271,7 @@
 
     return {
       success: true,
+      skipped: false,
       data: pageData,
       backend: backendResult,
       savedPage
@@ -256,7 +295,9 @@
     const alreadyScanned =
       await window.AdaptiveRagScanSettingsStore?.isUrlScanned?.(currentUrl);
 
-    if (alreadyScanned) {
+    const alreadySavedInCurrentSession = isUrlSavedInCurrentResearchStore(currentUrl);
+
+    if (alreadyScanned && alreadySavedInCurrentSession) {
       return true;
     }
 
@@ -293,7 +334,9 @@
       const alreadyScanned =
         await window.AdaptiveRagScanSettingsStore.isUrlScanned(currentUrl);
 
-      if (alreadyScanned) {
+      const alreadySavedInCurrentSession = isUrlSavedInCurrentResearchStore(currentUrl);
+
+      if (alreadyScanned && alreadySavedInCurrentSession) {
         window.AdaptiveRagScanPrompt?.hideScanPrompt?.();
         return;
       }

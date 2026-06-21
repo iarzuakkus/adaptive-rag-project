@@ -5,3 +5,5 @@ sentence-transformers
 numpy
 scikit-learn
 faiss-cpu
+google-genai
+python-dotenv

@@ -94,7 +94,7 @@ body {
   height: 36px;
   border-radius: 12px;
   background:
-    linear-gradient(135deg, rgba(255, 0, 31, 0.92), rgba(238, 167, 255, 0.92));
+    linear-gradient(135deg, #ff001feb, rgba(238, 167, 255, 0.92));
   box-shadow:
     0 0 14px rgba(255, 0, 31, 0.24),
     0 0 18px rgba(238, 167, 255, 0.14);
