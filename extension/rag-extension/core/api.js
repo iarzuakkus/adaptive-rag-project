@@ -17,6 +17,7 @@ async function sendPageData(payload) {
     return await response.json();
   } catch (error) {
     console.error("sendPageData hatası:", error);
+
     return {
       success: false,
       message: error.message
@@ -24,27 +25,38 @@ async function sendPageData(payload) {
   }
 }
 
-async function askQuestion(question) {
+async function askQuestion(question, context = {}) {
   try {
-    const response = await fetch(`${API_BASE}/query`, {
+    const payload = {
+      question,
+      page_url: context.page_url || null,
+      page_title: context.page_title || null,
+      scope: context.scope || "auto",
+      top_k: context.top_k || 5
+    };
+
+    const response = await fetch(`${API_BASE}/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ question })
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
-      throw new Error(`Query isteği başarısız. Status: ${response.status}`);
+      throw new Error(`Chat isteği başarısız. Status: ${response.status}`);
     }
 
     return await response.json();
   } catch (error) {
     console.error("askQuestion hatası:", error);
+
     return {
-      success: false,
       answer: "",
-      message: error.message
+      sources: [],
+      source_count: 0,
+      status: "error",
+      error: error.message
     };
   }
 }
@@ -66,6 +78,7 @@ async function sendPdfUrl(pdfUrl) {
     return await response.json();
   } catch (error) {
     console.error("sendPdfUrl hatası:", error);
+
     return {
       success: false,
       message: error.message

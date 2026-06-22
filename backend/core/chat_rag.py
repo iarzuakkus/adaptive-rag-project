@@ -33,6 +33,8 @@ def normalize_chunk(item: Any, index: int) -> dict:
         }
 
     if isinstance(item, dict):
+        metadata = item.get("metadata") or {}
+
         score = (
             item.get("score")
             if item.get("score") is not None
@@ -41,11 +43,41 @@ def normalize_chunk(item: Any, index: int) -> dict:
             else item.get("distance")
         )
 
+        title = (
+            item.get("title")
+            or item.get("page_title")
+            or item.get("source_title")
+            or metadata.get("title")
+            or metadata.get("page_title")
+            or metadata.get("source_title")
+            or "Başlıksız kaynak"
+        )
+
+        url = (
+            item.get("url")
+            or item.get("page_url")
+            or item.get("source_url")
+            or metadata.get("url")
+            or metadata.get("page_url")
+            or metadata.get("source_url")
+            or ""
+        )
+
+        content = (
+            item.get("content")
+            or item.get("text")
+            or item.get("chunk")
+            or item.get("page_content")
+            or metadata.get("content")
+            or metadata.get("text")
+            or ""
+        )
+
         return {
             "id": item.get("id") or item.get("chunk_id") or f"chunk-{index}",
-            "title": item.get("title") or item.get("page_title") or item.get("source_title") or "Başlıksız kaynak",
-            "url": item.get("url") or item.get("page_url") or item.get("source_url") or "",
-            "content": item.get("content") or item.get("text") or item.get("chunk") or item.get("page_content") or "",
+            "title": title,
+            "url": url,
+            "content": content,
             "score": score,
         }
 
@@ -58,17 +90,84 @@ def normalize_chunk(item: Any, index: int) -> dict:
     }
 
 
+def _normalize_scope(scope: Optional[str]) -> str:
+    """
+    Scope değerini güvenli hale getirir.
+    """
+
+    if not scope:
+        return "auto"
+
+    cleaned_scope = str(scope).strip().lower()
+
+    if not cleaned_scope:
+        return "auto"
+
+    return cleaned_scope
+
+
 def _call_retriever_function(
     func,
     question: str,
     top_k: int,
     page_url: Optional[str],
+    page_title: Optional[str],
+    scope: str,
 ):
     """
     Mevcut retriever fonksiyonunu güvenli şekilde çağırır.
+
+    Not:
+    retriever.py henüz yeni parametreleri desteklemiyor olabilir.
+    Bu yüzden önce yeni çağrı biçimleri denenir, hata olursa eski çağrı biçimlerine düşülür.
     """
 
     call_patterns = [
+        # Yeni hedef imza
+        lambda: func(
+            question=question,
+            top_k=top_k,
+            page_url=page_url,
+            page_title=page_title,
+            scope=scope,
+        ),
+        lambda: func(
+            query=question,
+            top_k=top_k,
+            page_url=page_url,
+            page_title=page_title,
+            scope=scope,
+        ),
+
+        # page_title destekli ama scope desteksiz olası yapı
+        lambda: func(
+            question=question,
+            top_k=top_k,
+            page_url=page_url,
+            page_title=page_title,
+        ),
+        lambda: func(
+            query=question,
+            top_k=top_k,
+            page_url=page_url,
+            page_title=page_title,
+        ),
+
+        # scope destekli ama page_title desteksiz olası yapı
+        lambda: func(
+            question=question,
+            top_k=top_k,
+            page_url=page_url,
+            scope=scope,
+        ),
+        lambda: func(
+            query=question,
+            top_k=top_k,
+            page_url=page_url,
+            scope=scope,
+        ),
+
+        # Eski mevcut yapı
         lambda: func(question=question, top_k=top_k, page_url=page_url),
         lambda: func(question, top_k=top_k, page_url=page_url),
         lambda: func(query=question, top_k=top_k, page_url=page_url),
@@ -95,6 +194,8 @@ def retrieve_relevant_chunks(
     question: str,
     top_k: int = 5,
     page_url: Optional[str] = None,
+    page_title: Optional[str] = None,
+    scope: Optional[str] = "auto",
 ) -> list[dict]:
     """
     backend/core/retriever.py içindeki retrieve fonksiyonunu çağırır.
@@ -104,6 +205,8 @@ def retrieve_relevant_chunks(
         import core.retriever as retriever_module
     except Exception as exc:
         raise RuntimeError(f"core.retriever import edilemedi: {exc}") from exc
+
+    normalized_scope = _normalize_scope(scope)
 
     possible_function_names = [
         "retrieve_relevant_chunks",
@@ -126,6 +229,8 @@ def retrieve_relevant_chunks(
                 question=question,
                 top_k=top_k,
                 page_url=page_url,
+                page_title=page_title,
+                scope=normalized_scope,
             )
             break
 
@@ -161,10 +266,64 @@ def retrieve_relevant_chunks(
     return normalized_chunks[:top_k]
 
 
+def _call_build_rag_prompt(
+    question: str,
+    chunks: list[dict],
+    page_url: Optional[str],
+    page_title: Optional[str],
+    scope: str,
+) -> str:
+    """
+    Prompt builder fonksiyonunu güvenli şekilde çağırır.
+
+    Not:
+    rag_prompt.py şu an sadece question ve chunks alıyor olabilir.
+    Bir sonraki adımda scope/page bilgisi desteklenince bu fonksiyon otomatik olarak
+    yeni parametrelerle çalışabilecek.
+    """
+
+    call_patterns = [
+        lambda: build_rag_prompt(
+            question=question,
+            chunks=chunks,
+            page_url=page_url,
+            page_title=page_title,
+            scope=scope,
+        ),
+        lambda: build_rag_prompt(
+            question=question,
+            chunks=chunks,
+            page_title=page_title,
+            scope=scope,
+        ),
+        lambda: build_rag_prompt(
+            question=question,
+            chunks=chunks,
+            scope=scope,
+        ),
+        lambda: build_rag_prompt(
+            question=question,
+            chunks=chunks,
+        ),
+    ]
+
+    last_error = None
+
+    for call in call_patterns:
+        try:
+            return call()
+        except TypeError as exc:
+            last_error = exc
+
+    raise RuntimeError(f"RAG prompt oluşturulamadı: {last_error}")
+
+
 def answer_chat(
     question: str,
     top_k: int = 5,
     page_url: Optional[str] = None,
+    page_title: Optional[str] = None,
+    scope: Optional[str] = "auto",
 ) -> dict:
     """
     Chat endpoint'i tarafından çağrılacak ana fonksiyon.
@@ -179,11 +338,20 @@ def answer_chat(
             "error": None,
         }
 
+    normalized_scope = _normalize_scope(scope)
+
+    safe_top_k = top_k
+
+    if not isinstance(safe_top_k, int) or safe_top_k <= 0:
+        safe_top_k = 5
+
     try:
         chunks = retrieve_relevant_chunks(
             question=question,
-            top_k=top_k,
+            top_k=safe_top_k,
             page_url=page_url,
+            page_title=page_title,
+            scope=normalized_scope,
         )
     except Exception as exc:
         return {
@@ -209,10 +377,22 @@ def answer_chat(
             "error": None,
         }
 
-    prompt = build_rag_prompt(
-        question=question,
-        chunks=chunks,
-    )
+    try:
+        prompt = _call_build_rag_prompt(
+            question=question,
+            chunks=chunks,
+            page_url=page_url,
+            page_title=page_title,
+            scope=normalized_scope,
+        )
+    except Exception as exc:
+        return {
+            "answer": "Kaynaklar bulundu ancak RAG prompt'u oluşturulurken hata oluştu.",
+            "sources": chunks,
+            "source_count": len(chunks),
+            "status": "prompt_error",
+            "error": str(exc),
+        }
 
     try:
         llm = LLMService()

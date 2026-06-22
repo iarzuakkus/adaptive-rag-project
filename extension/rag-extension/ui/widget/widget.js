@@ -218,13 +218,29 @@
       return;
     }
 
-    if (window.AdaptiveRagChatTab?.renderChatTab) {
-      body.innerHTML = await window.AdaptiveRagChatTab.renderChatTab();
-      window.AdaptiveRagChatTab?.bindChatEvents?.(renderActiveTab);
+    if (activeTab === "chat") {
+      if (window.AdaptiveRagChatTab?.renderChatTab) {
+        body.innerHTML = await window.AdaptiveRagChatTab.renderChatTab();
+
+        if (window.AdaptiveRagChatTab?.bindChatEvents) {
+          window.AdaptiveRagChatTab.bindChatEvents(renderActiveTab);
+          return;
+        }
+
+        if (window.AdaptiveRagChatEvents?.bindChatEvents) {
+          window.AdaptiveRagChatEvents.bindChatEvents(renderActiveTab);
+          return;
+        }
+
+        console.warn("[WIDGET] Chat event modülü yüklenmedi.");
+        return;
+      }
+
+      body.innerHTML = renderMissingModule("Chat modülü yüklenmedi.");
       return;
     }
 
-    body.innerHTML = renderMissingModule("Chat modülü yüklenmedi.");
+    body.innerHTML = renderMissingModule("Sekme modülü yüklenmedi.");
   }
 
   function renderMissingModule(message) {
@@ -286,6 +302,7 @@
 
   window.AdaptiveRagWidget = {
     __widgetName: "adaptive-rag-main-widget",
+
     createLauncher,
     createWidget,
     renderActiveTab,

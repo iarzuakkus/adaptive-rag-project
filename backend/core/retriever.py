@@ -3,14 +3,27 @@ Dosya: core/retriever.py
 
 Görev:
 - Kullanıcı sorusunu embedding'e çevirir.
-- Vector store içinde en alakalı chunk'ları arar.
+- Vector store içinde tüm taranmış kaynaklar arasında semantik arama yapar.
 - Chat RAG için standart kaynak listesi döndürür.
+
+Temel mantık:
+- page_url / page_title bilgisi frontend tarafından gönderilebilir.
+- Ancak retriever bu bilgileri filtre olarak kullanmaz.
+- Kullanıcı "bu sayfa" dese bile kaynakları URL'ye göre kilitlemez.
+- En alakalı chunk'lar tamamen embedding benzerliğine göre seçilir.
 """
 
 from typing import Any, Optional
 
 from core.embeddings import generate_embedding
 import core.vector_store as vector_store
+
+
+def _as_float(value: Any) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _normalize_item(item: Any, index: int) -> dict:
@@ -25,6 +38,7 @@ def _normalize_item(item: Any, index: int) -> dict:
             "url": "",
             "content": item,
             "score": None,
+            "metadata": {},
         }
 
     if isinstance(item, tuple):
@@ -42,6 +56,7 @@ def _normalize_item(item: Any, index: int) -> dict:
             "url": "",
             "content": str(content),
             "score": score,
+            "metadata": {},
         }
 
     if isinstance(item, dict):
@@ -64,6 +79,7 @@ def _normalize_item(item: Any, index: int) -> dict:
             or item.get("source_title")
             or metadata.get("title")
             or metadata.get("page_title")
+            or metadata.get("source_title")
             or "Başlıksız kaynak"
         )
 
@@ -73,6 +89,7 @@ def _normalize_item(item: Any, index: int) -> dict:
             or item.get("source_url")
             or metadata.get("url")
             or metadata.get("page_url")
+            or metadata.get("source_url")
             or ""
         )
 
@@ -109,13 +126,13 @@ def _normalize_item(item: Any, index: int) -> dict:
         "url": getattr(item, "url", ""),
         "content": getattr(item, "content", "") or getattr(item, "text", ""),
         "score": getattr(item, "score", None),
+        "metadata": {},
     }
 
 
 def _is_widget_chunk(content: str) -> bool:
     """
     Extension widget'ına ait metinleri kesin olarak filtreler.
-    Bunlar hiçbir zaman kaynak olarak kullanılmamalı.
     """
 
     if not content:
@@ -139,8 +156,7 @@ def _is_widget_chunk(content: str) -> bool:
 
 def _is_soft_low_quality_chunk(content: str) -> bool:
     """
-    Kaynakça/dipnot gibi zayıf metinleri işaretler.
-    Bu filtre kesin değil; eğer tüm sonuçları elerse fallback yapılır.
+    Kaynakça/dipnot gibi zayıf metinleri mümkünse eler.
     """
 
     if not content:
@@ -174,35 +190,25 @@ def _is_soft_low_quality_chunk(content: str) -> bool:
     return False
 
 
-def _normalize_results(
-    raw_results: Any,
-    top_k: int,
-    page_url: Optional[str] = None,
-) -> list[dict]:
+def _convert_raw_results(raw_results: Any) -> list:
     """
     Vector store'dan gelen farklı sonuç formatlarını listeye çevirir.
-
-    Filtre mantığı:
-    - Widget metinleri kesin silinir.
-    - Kaynakça/dipnot metinleri mümkünse silinir.
-    - Eğer tüm sonuçlar silinirse, boş dönmek yerine kullanılabilir ham sonuçlardan devam edilir.
     """
 
     if raw_results is None:
-        print("RETRIEVER RAW RESULT COUNT: 0")
         return []
 
     if isinstance(raw_results, dict):
         if "results" in raw_results:
-            raw_results = raw_results["results"]
+            return raw_results["results"]
 
-        elif "chunks" in raw_results:
-            raw_results = raw_results["chunks"]
+        if "chunks" in raw_results:
+            return raw_results["chunks"]
 
-        elif "sources" in raw_results:
-            raw_results = raw_results["sources"]
+        if "sources" in raw_results:
+            return raw_results["sources"]
 
-        elif "documents" in raw_results:
+        if "documents" in raw_results:
             documents = raw_results.get("documents") or []
             metadatas = raw_results.get("metadatas") or []
             ids = raw_results.get("ids") or []
@@ -238,19 +244,100 @@ def _normalize_results(
                     "metadata": metadata,
                 })
 
-            raw_results = converted
+            return converted
 
-        else:
-            raw_results = [raw_results]
+        return [raw_results]
 
     if not isinstance(raw_results, list):
-        raw_results = list(raw_results)
+        return list(raw_results)
 
-    print("RETRIEVER RAW RESULT COUNT:", len(raw_results))
+    return raw_results
+
+
+def _apply_score_filter(results: list[dict]) -> list[dict]:
+    """
+    En iyi semantic skorun çok altında kalan sonuçları eler.
+    Bu filtre URL filtresi değildir; sadece semantik olarak çok zayıf sonuçları azaltır.
+    """
+
+    scores = [
+        _as_float(item.get("score"))
+        for item in results
+        if _as_float(item.get("score")) is not None
+    ]
+
+    if not scores:
+        return results
+
+    best_score = max(scores)
+
+    if best_score <= 0:
+        return results
+
+    threshold = best_score * 0.45
+
+    filtered = [
+        item for item in results
+        if item.get("score") is None
+        or _as_float(item.get("score")) is None
+        or _as_float(item.get("score")) >= threshold
+    ]
+
+    return filtered if filtered else results
+
+
+def _sort_results(results: list[dict]) -> list[dict]:
+    """
+    Sonuçları sadece semantic score'a göre sıralar.
+    Aktif sayfa için ekstra avantaj verilmez.
+    """
+
+    def rank_value(item: dict) -> float:
+        return _as_float(item.get("score")) or 0.0
+
+    return sorted(results, key=rank_value, reverse=True)
+
+
+def _dedupe_results(results: list[dict]) -> list[dict]:
+    """
+    Aynı chunk'ın tekrar dönmesini engeller.
+    """
+
+    seen = set()
+    unique_results = []
+
+    for item in results:
+        key = (
+            item.get("url") or "",
+            item.get("title") or "",
+            (item.get("content") or "")[:120],
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        unique_results.append(item)
+
+    return unique_results
+
+
+def _normalize_results(
+    raw_results: Any,
+    top_k: int,
+) -> list[dict]:
+    """
+    Vector store sonucunu temizler.
+    Burada URL, aktif sayfa veya scope filtresi uygulanmaz.
+    """
+
+    raw_list = _convert_raw_results(raw_results)
+
+    print("RETRIEVER RAW RESULT COUNT:", len(raw_list))
 
     normalized = [
         _normalize_item(item, index)
-        for index, item in enumerate(raw_results, start=1)
+        for index, item in enumerate(raw_list, start=1)
     ]
 
     normalized = [
@@ -260,15 +347,6 @@ def _normalize_results(
     ]
 
     print("RETRIEVER NORMALIZED COUNT:", len(normalized))
-
-    if page_url:
-        filtered_by_url = [
-            item for item in normalized
-            if item.get("url") == page_url
-        ]
-
-        if filtered_by_url:
-            normalized = filtered_by_url
 
     hard_filtered = [
         item for item in normalized
@@ -287,11 +365,15 @@ def _normalize_results(
 
     print("RETRIEVER SOFT FILTERED COUNT:", len(soft_filtered))
 
-    final_results = soft_filtered if soft_filtered else hard_filtered
+    results = soft_filtered if soft_filtered else hard_filtered
 
-    print("RETRIEVER FINAL COUNT:", len(final_results))
+    results = _apply_score_filter(results)
+    results = _sort_results(results)
+    results = _dedupe_results(results)
 
-    return final_results[:top_k]
+    print("RETRIEVER FINAL COUNT:", len(results))
+
+    return results[:top_k]
 
 
 def _call_vector_store_with_embedding(
@@ -353,22 +435,33 @@ def retrieve_relevant_chunks(
     question: str,
     top_k: int = 5,
     page_url: Optional[str] = None,
+    page_title: Optional[str] = None,
+    scope: Optional[str] = "auto",
 ) -> list[dict]:
     """
     Chat RAG tarafından çağrılan ana fonksiyon.
+
+    Not:
+    page_url, page_title ve scope parametreleri geriye uyumluluk için alınır.
+    Bu sürümde retrieval filtresi olarak kullanılmaz.
     """
 
     if not question or not question.strip():
         return []
 
+    safe_top_k = top_k if isinstance(top_k, int) and top_k > 0 else 5
+
     query_embedding = generate_embedding(question)
 
     print("QUERY:", question)
+    print("QUERY PAGE URL:", page_url)
+    print("QUERY PAGE TITLE:", page_title)
+    print("QUERY SCOPE:", scope)
     print("QUERY EMBEDDING TYPE:", type(query_embedding))
     print("QUERY EMBEDDING LENGTH:", len(query_embedding))
     print("QUERY EMBEDDING PREVIEW:", query_embedding[:5])
 
-    candidate_k = max(top_k * 4, 20)
+    candidate_k = max(safe_top_k * 5, 25)
 
     raw_results = _call_vector_store_with_embedding(
         query_embedding=query_embedding,
@@ -377,8 +470,7 @@ def retrieve_relevant_chunks(
 
     return _normalize_results(
         raw_results=raw_results,
-        top_k=top_k,
-        page_url=page_url,
+        top_k=safe_top_k,
     )
 
 
@@ -386,11 +478,15 @@ def search(
     question: str,
     top_k: int = 5,
     page_url: Optional[str] = None,
+    page_title: Optional[str] = None,
+    scope: Optional[str] = "auto",
 ) -> list[dict]:
     return retrieve_relevant_chunks(
         question=question,
         top_k=top_k,
         page_url=page_url,
+        page_title=page_title,
+        scope=scope,
     )
 
 
@@ -398,9 +494,13 @@ def retrieve(
     question: str,
     top_k: int = 5,
     page_url: Optional[str] = None,
+    page_title: Optional[str] = None,
+    scope: Optional[str] = "auto",
 ) -> list[dict]:
     return retrieve_relevant_chunks(
         question=question,
         top_k=top_k,
         page_url=page_url,
+        page_title=page_title,
+        scope=scope,
     )

@@ -69,6 +69,7 @@
 
         "ui/widget/widget-state.js",
 
+        "ui/widget/events/chat-events.js",
         "ui/widget/events/source-events.js",
         "ui/widget/events/highlight-events.js",
 
