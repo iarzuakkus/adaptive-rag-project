@@ -2,7 +2,7 @@
   Dosya: widget-layout.css
 
   Görev:
-  - Adaptive RAG ana widget panelinin genel yerleşimini yönetir.
+  - MemorAI ana widget panelinin genel yerleşimini yönetir.
   - Widget'ın sayfadaki konumu, boyutu, arka planı, header alanı,
     logo alanı, kapatma butonu ve içerik gövdesi bu dosyada tasarlanır.
 
@@ -10,6 +10,15 @@
   - Sekme tasarımı widget-tabs.css dosyasında yönetilir.
   - Kart tasarımları widget-cards.css ve widget-sources.css dosyalarında yönetilir.
 */
+
+/* Sadece MemorAI marka yazısı için özel font */
+@font-face {
+  font-family: "MemorAIAlbertus";
+  src: url("../../../assets/fonts/albertusnova.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* Ana widget paneli */
 .rag-widget {
@@ -54,6 +63,7 @@
   gap: 10px;
   flex-shrink: 0;
 }
+
 /* Marka alanı */
 .rag-brand {
   display: flex;
@@ -95,14 +105,21 @@
   min-width: 0;
 }
 
-.rag-brand-text strong {
+/* Sadece MemorAI yazısı */
+.rag-brand-title,
+.rag-brand-text > strong {
   display: block;
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--rag-color-text);
-  line-height: 1.15;
-  letter-spacing: -0.2px;
+  font-family: "MemorAIAlbertus", Georgia, serif !important;
+  font-size: 22px;
+  font-weight: 400;
+  font-style: normal;
+  color: #ffffff;
+  line-height: 1;
+  letter-spacing: 0;
   white-space: nowrap;
+  text-shadow: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 .rag-brand-text span {
@@ -340,8 +357,9 @@
     height: 38px;
   }
 
-  .rag-brand-text strong {
-    font-size: 14px;
+  .rag-brand-title,
+  .rag-brand-text > strong {
+    font-size: 20px;
   }
 
   .rag-brand-text span {

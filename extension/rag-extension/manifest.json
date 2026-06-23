@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Adaptive RAG",
+  "name": "MemorAI",
   "version": "1.0.0",
-  "description": "Web sayfalarını kazıyıp Python backend'e gönderen Chrome extension.",
+  "description": "Kişisel araştırma asistanı",
   "permissions": [
     "activeTab",
     "scripting",
@@ -16,7 +16,7 @@
   ],
   "action": {
     "default_popup": "ui/popup.html",
-    "default_title": "Adaptive RAG",
+    "default_title": "MemorAI",
     "default_icon": {
       "64": "assets/logo64.png",
       "128": "assets/logo128.png"
@@ -34,7 +34,8 @@
       "resources": [
         "assets/logo.svg",
         "assets/logo64.png",
-        "assets/logo128.png"
+        "assets/logo128.png",
+        "assets/fonts/albertusnova.otf"
       ],
       "matches": [
         "<all_urls>"

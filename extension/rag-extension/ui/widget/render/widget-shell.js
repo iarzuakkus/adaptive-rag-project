@@ -32,7 +32,7 @@
     return `
       <img
         src="${getLogoUrl()}"
-        alt="Adaptive RAG Logo"
+        alt="MemorAI logo"
         class="rag-launcher-logo"
       />
     `;
@@ -46,13 +46,13 @@
             <div class="rag-brand-logo-wrap">
               <img
                 src="${getLogoUrl()}"
-                alt="Adaptive RAG"
+                alt="MemorAI"
                 class="rag-brand-logo"
               />
             </div>
 
             <div class="rag-brand-text">
-              <strong>Adaptive RAG</strong>
+              <strong>MemorAI</strong>
               <span>Kişisel araştırma asistanı</span>
             </div>
           </div>
@@ -67,7 +67,7 @@
           </button>
         </header>
 
-        <nav class="rag-tabs" role="tablist" aria-label="Adaptive RAG sekmeleri">
+        <nav class="rag-tabs" role="tablist" aria-label="MemorAI sekmeleri">
           <button
             class="rag-tab active"
             type="button"
@@ -112,13 +112,13 @@
             <div class="rag-brand-logo-wrap">
               <img
                 src="${getLogoUrl()}"
-                alt="Adaptive RAG"
+                alt="MemorAI"
                 class="rag-brand-logo"
               />
             </div>
 
             <div class="rag-brand-text">
-              <strong>Adaptive RAG</strong>
+              <strong>MemorAI</strong>
               <span>Oturum kapalı</span>
             </div>
           </div>
