@@ -19,11 +19,12 @@ from routes.ingest import router as ingest_router
 from routes.pdf import router as pdf_router
 from routes.query import router as query_router
 from routes.chat import router as chat_router
+from routes.sources import router as sources_router
 
 
 app = FastAPI(
     title="Adaptive RAG Backend",
-    description="Chrome extension için sayfa ingest, PDF, query ve Chat RAG backend servisi.",
+    description="Chrome extension için sayfa ingest, PDF, query, sources ve Chat RAG backend servisi.",
     version="1.0.0",
 )
 
@@ -49,6 +50,7 @@ app.include_router(ingest_router)
 app.include_router(pdf_router)
 app.include_router(query_router)
 app.include_router(chat_router)
+app.include_router(sources_router)
 
 
 @app.get("/")
@@ -57,6 +59,13 @@ def root():
         "message": "Adaptive RAG backend çalışıyor",
         "status": "ok",
         "docs": "/docs",
+        "modules": [
+            "ingest",
+            "pdf",
+            "query",
+            "chat",
+            "sources",
+        ],
     }
 
 
@@ -65,6 +74,13 @@ def health_check():
     return {
         "status": "healthy",
         "service": "adaptive-rag-backend",
+        "modules": {
+            "ingest": True,
+            "pdf": True,
+            "query": True,
+            "chat": True,
+            "sources": True,
+        },
     }
 
 

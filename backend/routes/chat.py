@@ -35,6 +35,10 @@ class ChatRequest(BaseModel):
     # - "bu sayfa" gibi sorularda current_page
     # - "taradığım kaynaklar" gibi sorularda all_sources
     # - konu bazlı sorularda topic_sources gibi yorumlanacak.
+    #
+    # Not:
+    # Şu an retriever bu alanı filtre olarak kullanmıyor.
+    # Genel semantic arama tüm kaynaklarda çalışıyor.
     scope: Optional[str] = "auto"
 
     top_k: int = 5
@@ -42,7 +46,18 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+
+    # Frontend chat cevabında gösterilecek sade kaynak listesi.
     sources: list[dict[str, Any]]
+
+    # Retriever'dan gelen tam chunk listesi.
+    # Debug, notlara aktarma ve detaylı kaynak işlemleri için tutulur.
+    chunks: list[dict[str, Any]] = []
+
+    # Frontend'in ileride çalıştırabileceği aksiyonlar:
+    # show_source, highlight_chunk vb.
+    actions: list[dict[str, Any]] = []
+
     source_count: int
     status: str
     error: Optional[str] = None

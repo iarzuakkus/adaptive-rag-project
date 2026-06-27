@@ -26,17 +26,47 @@ def _as_float(value: Any) -> Optional[float]:
         return None
 
 
+def _pick_first(*values, default=None):
+    for value in values:
+        if value is not None and value != "":
+            return value
+
+    return default
+
+
 def _normalize_item(item: Any, index: int) -> dict:
     """
     Vector store'dan dönen tek sonucu standart chunk formatına çevirir.
+
+    Standart dönüş:
+    - id
+    - source_id
+    - chunk_id
+    - title
+    - url
+    - domain
+    - content
+    - text
+    - chunk_text
+    - chunk_index
+    - score
+    - metadata
     """
 
     if isinstance(item, str):
+        chunk_id = f"chunk-{index}"
+
         return {
-            "id": f"chunk-{index}",
+            "id": chunk_id,
+            "source_id": None,
+            "chunk_id": chunk_id,
             "title": "Bilinmeyen kaynak",
             "url": "",
+            "domain": "",
             "content": item,
+            "text": item,
+            "chunk_text": item,
+            "chunk_index": index - 1,
             "score": None,
             "metadata": {},
         }
@@ -47,85 +77,148 @@ def _normalize_item(item: Any, index: int) -> dict:
 
         if isinstance(content, dict):
             normalized = _normalize_item(content, index)
-            normalized["score"] = score
+            normalized["score"] = _as_float(score)
             return normalized
 
+        chunk_id = f"chunk-{index}"
+        text = str(content)
+
         return {
-            "id": f"chunk-{index}",
+            "id": chunk_id,
+            "source_id": None,
+            "chunk_id": chunk_id,
             "title": "Bilinmeyen kaynak",
             "url": "",
-            "content": str(content),
-            "score": score,
+            "domain": "",
+            "content": text,
+            "text": text,
+            "chunk_text": text,
+            "chunk_index": index - 1,
+            "score": _as_float(score),
             "metadata": {},
         }
 
     if isinstance(item, dict):
         metadata = item.get("metadata") or item.get("meta") or {}
 
-        content = (
-            item.get("content")
-            or item.get("text")
-            or item.get("chunk")
-            or item.get("page_content")
-            or item.get("document")
-            or metadata.get("content")
-            or metadata.get("text")
-            or ""
+        content = _pick_first(
+            item.get("content"),
+            item.get("text"),
+            item.get("chunk_text"),
+            item.get("chunk"),
+            item.get("page_content"),
+            item.get("document"),
+            metadata.get("content"),
+            metadata.get("text"),
+            metadata.get("chunk_text"),
+            default="",
         )
 
-        title = (
-            item.get("title")
-            or item.get("page_title")
-            or item.get("source_title")
-            or metadata.get("title")
-            or metadata.get("page_title")
-            or metadata.get("source_title")
-            or "Başlıksız kaynak"
+        title = _pick_first(
+            item.get("title"),
+            item.get("page_title"),
+            item.get("source_title"),
+            metadata.get("title"),
+            metadata.get("page_title"),
+            metadata.get("source_title"),
+            default="Başlıksız kaynak",
         )
 
-        url = (
-            item.get("url")
-            or item.get("page_url")
-            or item.get("source_url")
-            or metadata.get("url")
-            or metadata.get("page_url")
-            or metadata.get("source_url")
-            or ""
+        url = _pick_first(
+            item.get("url"),
+            item.get("page_url"),
+            item.get("source_url"),
+            metadata.get("url"),
+            metadata.get("page_url"),
+            metadata.get("source_url"),
+            default="",
         )
 
-        item_id = (
-            item.get("id")
-            or item.get("chunk_id")
-            or metadata.get("id")
-            or metadata.get("chunk_id")
-            or f"chunk-{index}"
+        domain = _pick_first(
+            item.get("domain"),
+            metadata.get("domain"),
+            default="",
         )
 
-        score = (
-            item.get("score")
-            if item.get("score") is not None
-            else item.get("similarity")
-            if item.get("similarity") is not None
-            else item.get("distance")
-            if item.get("distance") is not None
-            else item.get("relevance")
+        source_id = _pick_first(
+            item.get("source_id"),
+            metadata.get("source_id"),
+            default=None,
         )
+
+        chunk_id = _pick_first(
+            item.get("chunk_id"),
+            metadata.get("chunk_id"),
+            item.get("id"),
+            metadata.get("id"),
+            default=f"chunk-{index}",
+        )
+
+        item_id = _pick_first(
+            item.get("id"),
+            item.get("chunk_id"),
+            metadata.get("id"),
+            metadata.get("chunk_id"),
+            default=chunk_id,
+        )
+
+        chunk_index = _pick_first(
+            item.get("chunk_index"),
+            metadata.get("chunk_index"),
+            default=index - 1,
+        )
+
+        raw_score = _pick_first(
+            item.get("score"),
+            item.get("similarity"),
+            item.get("distance"),
+            item.get("relevance"),
+            default=None,
+        )
+
+        safe_score = _as_float(raw_score)
+
+        text = str(content).strip() if content is not None else ""
 
         return {
             "id": item_id,
+            "source_id": source_id,
+            "chunk_id": chunk_id,
             "title": title,
             "url": url,
-            "content": content,
-            "score": score,
-            "metadata": metadata,
+            "domain": domain,
+            "content": text,
+            "text": text,
+            "chunk_text": text,
+            "chunk_index": chunk_index,
+            "score": safe_score,
+            "metadata": {
+                **metadata,
+                "source_id": source_id,
+                "chunk_id": chunk_id,
+                "title": title,
+                "url": url,
+                "domain": domain,
+                "chunk_index": chunk_index,
+            },
         }
 
+    content = getattr(item, "content", "") or getattr(item, "text", "")
+    text = str(content).strip() if content is not None else ""
+    chunk_id = getattr(item, "chunk_id", f"chunk-{index}")
+
     return {
-        "id": f"chunk-{index}",
+        "id": getattr(item, "id", chunk_id),
+        "source_id": getattr(item, "source_id", None),
+        "chunk_id": chunk_id,
         "title": getattr(item, "title", "Bilinmeyen kaynak"),
         "url": getattr(item, "url", ""),
-        "content": getattr(item, "content", "") or getattr(item, "text", ""),
-        "score": getattr(item, "score", None),
+        "domain": getattr(item, "domain", ""),
+        "content": text,
+        "text": text,
+        "chunk_text": text,
+        "chunk_index": getattr(item, "chunk_index", index - 1),
+        "score": _as_float(getattr(item, "score", None)),
         "metadata": {},
     }
 
@@ -147,8 +240,11 @@ def _is_widget_chunk(content: str) -> bool:
         "bu sayfayı tara",
         "kaynaklara ekleyebilirsin",
         "adaptive rag",
+        "memorai",
+        "rag-widget",
         "notlara ekle",
         "kaynaklar sekmesi",
+        "chat sekmesi",
     ]
 
     return any(phrase in lower_text for phrase in blocked_phrases)
@@ -235,11 +331,24 @@ def _convert_raw_results(raw_results: Any) -> list:
                     else {}
                 )
 
+                chunk_id = (
+                    metadata.get("chunk_id")
+                    or ids[index]
+                    if index < len(ids)
+                    else f"chunk-{index + 1}"
+                )
+
                 converted.append({
-                    "id": ids[index] if index < len(ids) else f"chunk-{index + 1}",
+                    "id": chunk_id,
+                    "source_id": metadata.get("source_id"),
+                    "chunk_id": chunk_id,
                     "title": metadata.get("title") or metadata.get("page_title") or "Başlıksız kaynak",
                     "url": metadata.get("url") or metadata.get("page_url") or "",
+                    "domain": metadata.get("domain") or "",
                     "content": document,
+                    "text": document,
+                    "chunk_text": document,
+                    "chunk_index": metadata.get("chunk_index", index),
                     "score": distances[index] if index < len(distances) else None,
                     "metadata": metadata,
                 })
@@ -248,10 +357,13 @@ def _convert_raw_results(raw_results: Any) -> list:
 
         return [raw_results]
 
-    if not isinstance(raw_results, list):
-        return list(raw_results)
+    if isinstance(raw_results, list):
+        return raw_results
 
-    return raw_results
+    try:
+        return list(raw_results)
+    except TypeError:
+        return [raw_results]
 
 
 def _apply_score_filter(results: list[dict]) -> list[dict]:
@@ -301,17 +413,24 @@ def _sort_results(results: list[dict]) -> list[dict]:
 def _dedupe_results(results: list[dict]) -> list[dict]:
     """
     Aynı chunk'ın tekrar dönmesini engeller.
+    Önce chunk_id kullanır, yoksa url + içerik önizlemesine düşer.
     """
 
     seen = set()
     unique_results = []
 
     for item in results:
-        key = (
-            item.get("url") or "",
-            item.get("title") or "",
-            (item.get("content") or "")[:120],
-        )
+        chunk_id = item.get("chunk_id")
+        source_id = item.get("source_id")
+
+        if source_id and chunk_id:
+            key = (source_id, chunk_id)
+        else:
+            key = (
+                item.get("url") or "",
+                item.get("title") or "",
+                (item.get("content") or "")[:120],
+            )
 
         if key in seen:
             continue
@@ -453,6 +572,8 @@ def retrieve_relevant_chunks(
 
     query_embedding = generate_embedding(question)
 
+    print("\nRETRIEVER QUERY")
+    print("-" * 40)
     print("QUERY:", question)
     print("QUERY PAGE URL:", page_url)
     print("QUERY PAGE TITLE:", page_title)
@@ -468,10 +589,25 @@ def retrieve_relevant_chunks(
         top_k=candidate_k,
     )
 
-    return _normalize_results(
+    results = _normalize_results(
         raw_results=raw_results,
         top_k=safe_top_k,
     )
+
+    print("\nRETRIEVER RETURN SOURCES")
+    print("-" * 40)
+
+    for item in results:
+        print({
+            "source_id": item.get("source_id"),
+            "chunk_id": item.get("chunk_id"),
+            "title": item.get("title"),
+            "url": item.get("url"),
+            "chunk_index": item.get("chunk_index"),
+            "score": item.get("score"),
+        })
+
+    return results
 
 
 def search(

@@ -30,6 +30,38 @@
   }
 
   /**
+   * Chrome extension context hâlâ geçerli mi kontrol eder.
+   *
+   * Not:
+   * Extension reload edildiğinde açık sayfada kalan eski content script
+   * "Extension context invalidated" hatası verebilir.
+   */
+  function isChromeStorageAvailable() {
+    try {
+      return (
+        typeof chrome !== "undefined" &&
+        chrome.storage &&
+        chrome.storage.local &&
+        typeof chrome.storage.local.get === "function" &&
+        typeof chrome.storage.local.set === "function"
+      );
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * chrome.runtime.lastError mesajını güvenli şekilde alır.
+   */
+  function getChromeLastErrorMessage() {
+    try {
+      return chrome.runtime?.lastError?.message || "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  /**
    * URL değerini güvenli hale getirir.
    */
   function normalizeUrl(url) {
@@ -61,26 +93,118 @@
 
   /**
    * Storage okuma işlemini Promise formatına çevirir.
+   * Extension context bozulursa null döndürür, sayfayı kırmaz.
    */
   function getFromStorage(key) {
     return new Promise((resolve) => {
-      chrome.storage.local.get([key], (result) => {
-        resolve(result[key]);
-      });
+      let settled = false;
+
+      function safeResolve(value) {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        resolve(value);
+      }
+
+      try {
+        if (!isChromeStorageAvailable()) {
+          console.warn(
+            "[SCAN SETTINGS] Chrome storage kullanılamıyor. Muhtemelen extension context yenilendi."
+          );
+
+          safeResolve(null);
+          return;
+        }
+
+        const timeoutId = setTimeout(() => {
+          console.warn("[SCAN SETTINGS] Storage okuma zaman aşımına uğradı:", key);
+          safeResolve(null);
+        }, 1200);
+
+        chrome.storage.local.get([key], (result) => {
+          clearTimeout(timeoutId);
+
+          const lastErrorMessage = getChromeLastErrorMessage();
+
+          if (lastErrorMessage) {
+            console.warn("[SCAN SETTINGS] Storage okuma hatası:", lastErrorMessage);
+            safeResolve(null);
+            return;
+          }
+
+          safeResolve(result?.[key] || null);
+        });
+      } catch (error) {
+        console.warn(
+          "[SCAN SETTINGS] getFromStorage yakalanan hata:",
+          error?.message || error
+        );
+
+        safeResolve(null);
+      }
     });
   }
 
   /**
    * Storage yazma işlemini Promise formatına çevirir.
+   * Extension context bozulursa mevcut değeri döndürür, sayfayı kırmaz.
    */
   function setToStorage(key, value) {
     return new Promise((resolve) => {
-      chrome.storage.local.set(
-        {
-          [key]: value
-        },
-        () => resolve(value)
-      );
+      let settled = false;
+
+      function safeResolve(nextValue) {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        resolve(nextValue);
+      }
+
+      try {
+        if (!isChromeStorageAvailable()) {
+          console.warn(
+            "[SCAN SETTINGS] Chrome storage kullanılamıyor. Yazma işlemi atlandı."
+          );
+
+          safeResolve(value);
+          return;
+        }
+
+        const timeoutId = setTimeout(() => {
+          console.warn("[SCAN SETTINGS] Storage yazma zaman aşımına uğradı:", key);
+          safeResolve(value);
+        }, 1200);
+
+        chrome.storage.local.set(
+          {
+            [key]: value
+          },
+          () => {
+            clearTimeout(timeoutId);
+
+            const lastErrorMessage = getChromeLastErrorMessage();
+
+            if (lastErrorMessage) {
+              console.warn("[SCAN SETTINGS] Storage yazma hatası:", lastErrorMessage);
+              safeResolve(value);
+              return;
+            }
+
+            safeResolve(value);
+          }
+        );
+      } catch (error) {
+        console.warn(
+          "[SCAN SETTINGS] setToStorage yakalanan hata:",
+          error?.message || error
+        );
+
+        safeResolve(value);
+      }
     });
   }
 

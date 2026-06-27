@@ -2,8 +2,12 @@
   Dosya: widget-sources.css
 
   Görev:
-  - Kaynaklar sekmesinin görünümünü yönetir.
-  - Taranan sayfa kartları, URL bilgisi ve chunk kartları burada tasarlanır.
+  - Kaynaklar sekmesinin ana görünümünü yönetir.
+  - Backend'den gelen kaynak kartları, URL bilgisi,
+    kaynak aksiyonları ve timeline alanları burada tasarlanır.
+
+  Not:
+  - Kaynak detay paneli widget-source-detail.css dosyasında yönetilir.
 */
 
 .rag-sources-layout {
@@ -18,10 +22,29 @@
   gap: 9px;
 }
 
+/* Header aksiyonları */
+.rag-source-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.rag-sources-layout .rag-section-head .rag-primary-btn,
+.rag-sources-layout .rag-section-head .rag-secondary-btn {
+  flex-shrink: 0;
+}
+
 /* Kaynak kartı */
 .rag-source-card {
   overflow: hidden;
   padding: 0;
+  border-radius: var(--rag-radius-md);
+  border: 1px solid rgba(238, 167, 255, 0.11);
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 31, 0.075), transparent 34%),
+    rgba(255, 255, 255, 0.035);
 }
 
 /* Kaynak kartı başlığı */
@@ -37,7 +60,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 9px;
-  cursor: pointer;
   padding: 10px 11px;
   font-family: var(--rag-font-family);
 }
@@ -57,46 +79,18 @@
   color: var(--rag-color-text-muted);
 }
 
-.rag-source-arrow {
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.055);
-  color: var(--rag-color-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  line-height: 1;
-  flex-shrink: 0;
-  transition:
-    transform var(--rag-transition-normal),
-    background var(--rag-transition-normal),
-    color var(--rag-transition-normal);
-}
-
-.rag-source-card.open .rag-source-arrow {
-  transform: rotate(180deg);
-  background: var(--rag-gradient-main);
-  color: #ffffff;
-}
-
-/* Kart detay alanı */
+/* Kart içerik alanı */
 .rag-source-card-body {
-  display: none;
+  display: block;
   padding: 0 11px 11px;
   border-top: 1px solid rgba(238, 167, 255, 0.1);
-}
-
-.rag-source-card.open .rag-source-card-body {
-  display: block;
 }
 
 /* Kaynak özeti */
 .rag-source-summary {
   margin: 10px 0 9px;
   font-size: 11px;
-  line-height: 1.42;
+  line-height: 1.45;
   color: var(--rag-color-text-muted);
 }
 
@@ -115,8 +109,50 @@
 
 /* Kaynak kartı aksiyonları */
 .rag-source-actions {
-  margin-top: 8px;
-  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.rag-source-actions .rag-secondary-btn,
+.rag-source-actions .rag-danger-btn {
+  min-height: 30px;
+}
+
+/* Silme butonu */
+.rag-danger-btn {
+  border: 1px solid rgba(255, 83, 112, 0.34);
+  background:
+    linear-gradient(135deg, rgba(255, 0, 31, 0.16), rgba(255, 255, 255, 0.035));
+  color: #ffd8df;
+  border-radius: var(--rag-radius-sm);
+  padding: 7px 10px;
+  font-family: var(--rag-font-family);
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    transform var(--rag-transition-normal),
+    border-color var(--rag-transition-normal),
+    background var(--rag-transition-normal),
+    opacity var(--rag-transition-normal);
+}
+
+.rag-danger-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 83, 112, 0.62);
+  background:
+    linear-gradient(135deg, rgba(255, 0, 31, 0.24), rgba(255, 255, 255, 0.05));
+}
+
+.rag-danger-btn:disabled,
+.rag-secondary-btn:disabled,
+.rag-primary-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Chunk alanı */
@@ -127,7 +163,6 @@
   margin-top: 9px;
 }
 
-/* Chunk kartı */
 .rag-chunk-card {
   background:
     radial-gradient(circle at top left, rgba(255, 0, 31, 0.08), transparent 35%),
@@ -148,7 +183,12 @@
   margin-top: 8px;
 }
 
-/* Zaman çizelgesi kutusu */
+.rag-chunk-actions .rag-link-btn {
+  margin-right: 8px;
+  margin-bottom: 5px;
+}
+
+/* Timeline */
 .rag-timeline-box {
   padding: 10px;
   margin-top: 0;
@@ -210,19 +250,16 @@
   color: var(--rag-color-text-muted);
 }
 
-.rag-chunk-actions .rag-link-btn {
-  margin-right: 8px;
-  margin-bottom: 5px;
-}
-
-.rag-sources-layout .rag-section-head .rag-primary-btn {
-  flex-shrink: 0;
-}
-
 /* Mobil uyum */
 @media (max-width: 540px) {
   .rag-sources-layout {
     gap: 9px;
+  }
+
+  .rag-source-head-actions {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
   }
 
   .rag-source-card-head {
@@ -239,6 +276,10 @@
 
   .rag-source-summary {
     font-size: 10.5px;
+  }
+
+  .rag-source-actions {
+    gap: 6px;
   }
 
   .rag-chunk-card p {

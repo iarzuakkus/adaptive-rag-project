@@ -1,0 +1,294 @@
+/*
+  Dosya: widget-source-detail.css
+
+  Görev:
+  - Kaynak detay panelinin görünümünü yönetir.
+  - Detay overlay, detay paneli, üst bilgi alanı, meta kutuları,
+    kaynak özeti ve chunk preview listesi burada tasarlanır.
+*/
+
+/* Kaynak detay overlay */
+.rag-source-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  pointer-events: auto;
+}
+
+.rag-source-detail-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 4, 8, 0.42);
+  backdrop-filter: blur(5px);
+}
+
+/* Kaynak detay paneli */
+.rag-source-detail-panel {
+  position: relative;
+  right: 20px;
+  bottom: 84px;
+  width: 320px;
+  max-height: 490px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--rag-radius-lg);
+  border: 1px solid rgba(238, 167, 255, 0.18);
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 31, 0.18), transparent 36%),
+    radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.13), transparent 38%),
+    rgba(12, 11, 18, 0.96);
+  box-shadow:
+    0 24px 75px rgba(0, 0, 0, 0.48),
+    0 0 28px rgba(255, 0, 31, 0.12);
+  color: var(--rag-color-text);
+  font-family: var(--rag-font-family);
+}
+
+/* Detay header */
+.rag-source-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 14px 11px;
+  border-bottom: 1px solid rgba(238, 167, 255, 0.12);
+}
+
+.rag-source-detail-kicker {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--rag-color-secondary);
+  letter-spacing: 0.02em;
+}
+
+.rag-source-detail-header h3 {
+  margin: 0 0 5px;
+  font-size: 13px;
+  line-height: 1.28;
+  font-weight: 780;
+  color: var(--rag-color-text);
+}
+
+.rag-source-detail-header p {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--rag-color-text-muted);
+  word-break: break-word;
+}
+
+.rag-icon-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(238, 167, 255, 0.13);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--rag-color-text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background var(--rag-transition-normal),
+    border-color var(--rag-transition-normal),
+    transform var(--rag-transition-normal);
+}
+
+.rag-icon-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.075);
+  border-color: rgba(238, 167, 255, 0.28);
+}
+
+/* Detay meta kutuları */
+.rag-source-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(238, 167, 255, 0.1);
+}
+
+.rag-source-detail-meta div {
+  min-width: 0;
+  padding: 8px 7px;
+  border-radius: var(--rag-radius-sm);
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(238, 167, 255, 0.08);
+}
+
+.rag-source-detail-meta span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 9px;
+  line-height: 1.2;
+  color: var(--rag-color-text-muted);
+}
+
+.rag-source-detail-meta strong {
+  display: block;
+  font-size: 10px;
+  line-height: 1.25;
+  color: var(--rag-color-text);
+  font-weight: 720;
+  word-break: break-word;
+}
+
+/* Detay aksiyonları */
+.rag-source-detail-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 11px 14px 0;
+}
+
+.rag-source-detail-section {
+  padding: 12px 14px 0;
+}
+
+.rag-source-detail-section:last-child {
+  padding-bottom: 14px;
+  overflow: auto;
+}
+
+.rag-source-detail-summary {
+  margin: 8px 0 0;
+  padding: 10px;
+  border-radius: var(--rag-radius-sm);
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(238, 167, 255, 0.09);
+  font-size: 11px;
+  line-height: 1.48;
+  color: var(--rag-color-text-muted);
+}
+
+/* Detay chunk listesi */
+.rag-source-detail-chunks {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 9px;
+  max-height: 205px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.rag-source-detail-chunk {
+  padding: 10px;
+  border-radius: var(--rag-radius-sm);
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 31, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.034);
+  border: 1px solid rgba(238, 167, 255, 0.1);
+}
+
+.rag-source-detail-chunk-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rag-source-detail-chunk-head strong {
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--rag-color-text);
+  font-weight: 740;
+}
+
+.rag-source-detail-chunk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.rag-source-detail-chunk p {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.48;
+  color: var(--rag-color-text-muted);
+}
+
+/* Kompakt boş durum */
+.rag-empty-state.compact {
+  padding: 10px;
+  margin-top: 8px;
+}
+
+.rag-empty-state.compact strong {
+  font-size: 11px;
+}
+
+.rag-empty-state.compact span {
+  font-size: 10px;
+}
+
+/* Scrollbar */
+.rag-source-detail-chunks::-webkit-scrollbar {
+  width: 5px;
+}
+
+.rag-source-detail-chunks::-webkit-scrollbar-thumb {
+  background: rgba(238, 167, 255, 0.2);
+  border-radius: 999px;
+}
+
+.rag-source-detail-chunks::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Mobil uyum */
+@media (max-width: 540px) {
+  .rag-source-detail-overlay {
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .rag-source-detail-panel {
+    right: auto;
+    bottom: 14px;
+    width: calc(100vw - 24px);
+    max-height: 78vh;
+  }
+
+  .rag-source-detail-header {
+    padding: 13px 13px 10px;
+  }
+
+  .rag-source-detail-meta {
+    grid-template-columns: 1fr;
+    padding: 10px 13px;
+  }
+
+  .rag-source-detail-actions {
+    padding: 10px 13px 0;
+  }
+
+  .rag-source-detail-section {
+    padding: 11px 13px 0;
+  }
+
+  .rag-source-detail-chunks {
+    max-height: 220px;
+  }
+
+  .rag-source-detail-chunk-head {
+    flex-direction: column;
+  }
+
+  .rag-source-detail-chunk-actions {
+    justify-content: flex-start;
+  }
+}
