@@ -2,25 +2,21 @@
  * Dosya: source-detail.js
  *
  * Görev:
- * - Kaynaklar sekmesinde "Detay" butonuna basıldığında kaynak detay ekranını açar.
- * - Backend'den gelen source metadata ve chunk listesini gösterir.
- * - Kaynak özeti, temel bilgiler ve chunk preview alanını üretir.
- * - Kaynağa git, kapat, chunk highlight ve chunk'ı chat'e sor aksiyonları için temel butonları hazırlar.
+ * - Kaynak detay görünümünün HTML içeriğini üretir.
+ * - Detay ekranını kendi başına açmaz.
+ * - Overlay, backdrop veya modal oluşturmaz.
+ * - Detay görünümü sources-tab.js içinde gösterilir.
  *
  * Not:
  * - Bu dosya backend'e doğrudan istek atmaz.
- * - source-events.js backend'den detayı alır ve bu modüle source objesini verir.
- * - Mock veri üretmez.
+ * - source-events.js backend'den detayı alır.
+ * - sources-tab.js bu modülden gelen HTML'i Kaynaklar sekmesi içine basar.
  */
 
 (function () {
   if (window.AdaptiveRagSourceDetail?.__moduleName === "source-detail") {
     return;
   }
-
-  const DETAIL_OVERLAY_ID = "ragSourceDetailOverlay";
-
-  let activeSource = null;
 
   function escapeHtml(text) {
     if (window.AdaptiveRagState?.escapeHtml) {
@@ -35,7 +31,7 @@
       .replaceAll("'", "&#039;");
   }
 
-  function trimText(text, maxLength = 260) {
+  function trimText(text, maxLength = 900) {
     if (window.AdaptiveRagState?.trimText) {
       return window.AdaptiveRagState.trimText(text, maxLength);
     }
@@ -51,7 +47,7 @@
 
   function formatDate(value) {
     if (!value) {
-      return "";
+      return "Tarih bilgisi yok";
     }
 
     try {
@@ -82,378 +78,156 @@
     }
   }
 
-  function getOverlay() {
-    let overlay = document.getElementById(DETAIL_OVERLAY_ID);
-
-    if (overlay) {
-      return overlay;
-    }
-
-    overlay = document.createElement("div");
-    overlay.id = DETAIL_OVERLAY_ID;
-    overlay.className = "rag-source-detail-overlay";
-
-    document.body.appendChild(overlay);
-
-    return overlay;
+  function getSourceTitle(source) {
+    return (
+      source?.llm_title ||
+      source?.generated_title ||
+      source?.source_title ||
+      source?.title ||
+      "Başlıksız kaynak"
+    );
   }
 
-  function closeSourceDetail() {
-    const overlay = document.getElementById(DETAIL_OVERLAY_ID);
-
-    if (overlay) {
-      overlay.remove();
-    }
-
-    activeSource = null;
+  function getShortSummary(source) {
+    return (
+      source?.short_summary ||
+      source?.card_summary ||
+      source?.summary ||
+      "Bu kaynak için kısa özet henüz oluşturulmadı."
+    );
   }
 
-  function openSourceDetail(source) {
-    if (!source) {
-      return;
-    }
-
-    activeSource = source;
-
-    const overlay = getOverlay();
-
-    overlay.innerHTML = renderSourceDetail(source);
-
-    bindDetailEvents(overlay);
+  function getLongSummary(source) {
+    return (
+      source?.long_summary ||
+      source?.detail_summary ||
+      source?.extended_summary ||
+      source?.summary ||
+      "Bu kaynak için geniş özet henüz oluşturulmadı."
+    );
   }
 
   function renderSourceDetail(source) {
-    const title = source.title || "Başlıksız kaynak";
+    if (!source) {
+      return renderEmptyDetail();
+    }
+
+    const title = getSourceTitle(source);
     const url = source.url || "";
     const domain = source.domain || getShortUrl(url);
-    const scannedAt = formatDate(source.scanned_at);
-    const summary = source.summary || "Bu kaynak için özet henüz oluşturulmadı.";
-    const chunks = Array.isArray(source.chunks) ? source.chunks : [];
-    const chunkCount = source.chunk_count || chunks.length || 0;
+    const scannedAt = formatDate(source.scanned_at || source.scannedAt);
+    const shortSummary = getShortSummary(source);
+    const longSummary = getLongSummary(source);
+    const sourceId = source.source_id || source.sourceId || "";
 
     return `
-      <div class="rag-source-detail-backdrop" data-source-detail-close="1"></div>
-
-      <section
-        class="rag-source-detail-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Kaynak detayı"
+      <div
+        class="rag-source-detail-view"
+        data-source-id="${escapeHtml(sourceId)}"
       >
-        <div class="rag-source-detail-header">
-          <div>
-            <span class="rag-source-detail-kicker">Kaynak detayı</span>
-            <h3>${escapeHtml(title)}</h3>
-            <p>${escapeHtml(domain || url)}</p>
+        <button
+          class="rag-source-back-btn"
+          type="button"
+          aria-label="Kaynak listesine dön"
+        >
+          ← Kaynaklara dön
+        </button>
+
+        <article class="rag-source-detail-card">
+          <div class="rag-source-detail-top">
+            <div>
+              <span class="rag-source-detail-label">Kaynak detayı</span>
+              <h3>${escapeHtml(title)}</h3>
+            </div>
           </div>
 
-          <button
-            class="rag-icon-btn rag-source-detail-close-btn"
-            type="button"
-            aria-label="Kaynak detayını kapat"
-          >
-            ×
-          </button>
-        </div>
+          <div class="rag-source-detail-info">
+            <div>
+              <span>Taranma zamanı</span>
+              <strong>${escapeHtml(scannedAt)}</strong>
+            </div>
 
-        <div class="rag-source-detail-meta">
-          <div>
-            <span>Tarama zamanı</span>
-            <strong>${escapeHtml(scannedAt || "Bilinmiyor")}</strong>
+            <div>
+              <span>Kaynak</span>
+              <strong>${escapeHtml(domain || "Kaynak adresi yok")}</strong>
+            </div>
           </div>
 
-          <div>
-            <span>Parça sayısı</span>
-            <strong>${chunkCount}</strong>
-          </div>
+          <section class="rag-source-detail-section">
+            <h4>Kısa özet</h4>
+            <p>${escapeHtml(trimText(shortSummary, 360))}</p>
+          </section>
 
-          <div>
-            <span>Durum</span>
-            <strong>${escapeHtml(source.status || "ready")}</strong>
-          </div>
-        </div>
+          <section class="rag-source-detail-section">
+            <h4>Geniş özet</h4>
+            <p>${escapeHtml(trimText(longSummary, 1200))}</p>
+          </section>
 
-        <div class="rag-source-detail-actions">
           ${
             url
               ? `
-                <button
-                  class="rag-secondary-btn rag-source-detail-open-url-btn"
-                  type="button"
-                  data-url="${escapeHtml(url)}"
-                >
-                  Kaynağa git
-                </button>
+                <div class="rag-source-detail-url">
+                  ${escapeHtml(url)}
+                </div>
               `
               : ""
           }
 
-          <button
-            class="rag-secondary-btn rag-source-detail-ask-btn"
-            type="button"
-            data-source-id="${escapeHtml(source.source_id || "")}"
-          >
-            Bu kaynağı chat’e sor
-          </button>
-        </div>
+          <div class="rag-source-detail-actions">
+            ${
+              url
+                ? `
+                  <button
+                    class="rag-secondary-btn rag-open-source-btn"
+                    type="button"
+                    data-url="${escapeHtml(url)}"
+                  >
+                    Siteye git
+                  </button>
+                `
+                : ""
+            }
 
-        <div class="rag-source-detail-section">
-          <div class="rag-subtitle">Özet</div>
-          <p class="rag-source-detail-summary">
-            ${escapeHtml(summary)}
-          </p>
-        </div>
-
-        <div class="rag-source-detail-section">
-          <div class="rag-subtitle">Kaynak parçaları</div>
-
-          ${
-            chunks.length
-              ? renderChunkPreviewList(chunks)
-              : renderEmptyChunks()
-          }
-        </div>
-      </section>
-    `;
-  }
-
-  function renderChunkPreviewList(chunks) {
-    return `
-      <div class="rag-source-detail-chunks">
-        ${chunks.map(renderChunkPreview).join("")}
-      </div>
-    `;
-  }
-
-  function renderChunkPreview(chunk, index) {
-    const text = chunk.text || chunk.content || chunk.chunk_text || "";
-    const chunkIndex = chunk.chunk_index ?? index;
-    const sourceId = chunk.source_id || activeSource?.source_id || "";
-    const chunkId = chunk.chunk_id || "";
-
-    return `
-      <article
-        class="rag-source-detail-chunk"
-        data-source-id="${escapeHtml(sourceId)}"
-        data-chunk-id="${escapeHtml(chunkId)}"
-      >
-        <div class="rag-source-detail-chunk-head">
-          <strong>Parça ${Number(chunkIndex) + 1}</strong>
-
-          <div class="rag-source-detail-chunk-actions">
-            <button
-              class="rag-secondary-btn small rag-source-detail-highlight-btn"
-              type="button"
-              data-source-id="${escapeHtml(sourceId)}"
-              data-chunk-id="${escapeHtml(chunkId)}"
-            >
-              Kaynakta göster
-            </button>
-
-            <button
-              class="rag-secondary-btn small rag-source-detail-ask-chunk-btn"
-              type="button"
-              data-source-id="${escapeHtml(sourceId)}"
-              data-chunk-id="${escapeHtml(chunkId)}"
-            >
-              Chat’e sor
-            </button>
+            ${
+              sourceId
+                ? `
+                  <button
+                    class="rag-danger-btn rag-delete-source-btn"
+                    type="button"
+                    data-source-id="${escapeHtml(sourceId)}"
+                  >
+                    Sil
+                  </button>
+                `
+                : ""
+            }
           </div>
-        </div>
-
-        <p>${escapeHtml(trimText(text, 420))}</p>
-      </article>
-    `;
-  }
-
-  function renderEmptyChunks() {
-    return `
-      <div class="rag-empty-state compact">
-        <strong>Parça bulunamadı.</strong>
-        <span>Bu kaynak için backend chunk listesi döndürmedi.</span>
+        </article>
       </div>
     `;
   }
 
-  function bindDetailEvents(overlay) {
-    overlay.addEventListener("click", (event) => {
-      const closeTarget = event.target.closest(
-        ".rag-source-detail-close-btn, [data-source-detail-close='1']"
-      );
+  function renderEmptyDetail() {
+    return `
+      <div class="rag-source-detail-view">
+        <button
+          class="rag-source-back-btn"
+          type="button"
+          aria-label="Kaynak listesine dön"
+        >
+          ← Kaynaklara dön
+        </button>
 
-      if (closeTarget) {
-        event.preventDefault();
-        closeSourceDetail();
-        return;
-      }
-
-      const openUrlButton = event.target.closest(".rag-source-detail-open-url-btn");
-
-      if (openUrlButton) {
-        event.preventDefault();
-
-        const url = openUrlButton.dataset.url;
-
-        if (url) {
-          window.open(url, "_blank", "noopener,noreferrer");
-        }
-
-        return;
-      }
-
-      const askSourceButton = event.target.closest(".rag-source-detail-ask-btn");
-
-      if (askSourceButton) {
-        event.preventDefault();
-        handleAskSource(askSourceButton);
-        return;
-      }
-
-      const askChunkButton = event.target.closest(".rag-source-detail-ask-chunk-btn");
-
-      if (askChunkButton) {
-        event.preventDefault();
-        handleAskChunk(askChunkButton);
-        return;
-      }
-
-      const highlightButton = event.target.closest(".rag-source-detail-highlight-btn");
-
-      if (highlightButton) {
-        event.preventDefault();
-        handleHighlightChunk(highlightButton);
-      }
-    });
+        <div class="rag-empty-state">
+          <strong>Kaynak detayı bulunamadı.</strong>
+          <span>Backend kaynak detayını döndürmedi.</span>
+        </div>
+      </div>
+    `;
   }
-
-  function switchToChatTab() {
-    if (window.AdaptiveRagState?.setActiveTab) {
-      window.AdaptiveRagState.setActiveTab("chat");
-    }
-
-    if (window.AdaptiveRagWidget?.renderActiveTab) {
-      window.AdaptiveRagWidget.renderActiveTab();
-    }
-  }
-
-  function fillChatInput(question) {
-    const possibleInputs = [
-      document.querySelector("#ragChatInput"),
-      document.querySelector("#ragChatTextarea"),
-      document.querySelector("[data-rag-chat-input='1']"),
-      document.querySelector(".rag-chat-input textarea"),
-      document.querySelector(".rag-chat-input input")
-    ];
-
-    const input = possibleInputs.find(Boolean);
-
-    if (!input) {
-      return false;
-    }
-
-    input.value = question;
-
-    input.dispatchEvent(
-      new Event("input", {
-        bubbles: true
-      })
-    );
-
-    input.focus();
-
-    return true;
-  }
-
-  function handleAskSource(button) {
-    const sourceId = button.dataset.sourceId || activeSource?.source_id || "";
-    const title = activeSource?.title || "bu kaynak";
-
-    const question = sourceId
-      ? `"${title}" kaynağını temel alarak kısa bir özet çıkar.`
-      : "Bu kaynağı temel alarak kısa bir özet çıkar.";
-
-    switchToChatTab();
-
-    const filled = fillChatInput(question);
-
-    if (!filled) {
-      console.warn("[SOURCE DETAIL] Chat input bulunamadı. Soru:", question);
-    }
-
-    closeSourceDetail();
-  }
-
-  function handleAskChunk(button) {
-    const sourceId = button.dataset.sourceId || activeSource?.source_id || "";
-    const chunkId = button.dataset.chunkId || "";
-    const title = activeSource?.title || "bu kaynak";
-
-    const question =
-      sourceId && chunkId
-        ? `"${title}" kaynağındaki ilgili parçayı açıkla.`
-        : "Bu kaynak parçasını açıkla.";
-
-    switchToChatTab();
-
-    const filled = fillChatInput(question);
-
-    if (!filled) {
-      console.warn("[SOURCE DETAIL] Chat input bulunamadı. Soru:", question);
-    }
-
-    closeSourceDetail();
-  }
-
-  function handleHighlightChunk(button) {
-    const sourceId = button.dataset.sourceId || activeSource?.source_id || "";
-    const chunkId = button.dataset.chunkId || "";
-
-    if (!sourceId || !chunkId) {
-      alert("Highlight için source_id veya chunk_id bulunamadı.");
-      return;
-    }
-
-    if (window.AdaptiveRagHighlightEvents?.highlightChunk) {
-      window.AdaptiveRagHighlightEvents.highlightChunk({
-        sourceId,
-        chunkId,
-        url: activeSource?.url || ""
-      });
-
-      closeSourceDetail();
-      return;
-    }
-
-    window.dispatchEvent(
-      new CustomEvent("adaptive-rag-highlight-chunk", {
-        detail: {
-          sourceId,
-          chunkId,
-          url: activeSource?.url || ""
-        }
-      })
-    );
-
-    console.log("[SOURCE DETAIL] Highlight isteği gönderildi:", {
-      sourceId,
-      chunkId,
-      url: activeSource?.url || ""
-    });
-
-    closeSourceDetail();
-  }
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && activeSource) {
-      closeSourceDetail();
-    }
-  });
 
   window.AdaptiveRagSourceDetail = {
     __moduleName: "source-detail",
-
-    openSourceDetail,
-    renderSourceDetail,
-    closeSourceDetail
+    renderSourceDetail
   };
 })();

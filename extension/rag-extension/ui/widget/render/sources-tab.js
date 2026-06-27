@@ -3,16 +3,20 @@
  *
  * Görev:
  * - Kaynaklar sekmesinin HTML içeriğini üretir.
- * - Oturum/research-store mantığını korur.
- * - Aktif oturumda kaynak yoksa backend kaynaklarını göstermez.
- * - Aktif oturumda kaynak varsa backend /sources endpointinden gerçek kaynakları alır.
- * - Backend alınamazsa research-store içindeki eski kaynak verisini fallback olarak kullanır.
- * - Elle tarama modunda "Sayfayı tara" butonunu gösterir.
+ * - Kaynakların gerçek sahibi backend'dir.
+ * - Backend çalışmıyorsa eski/local kaynak fallback'i göstermez.
+ * - Kaynak kartlarını sade biçimde render eder.
+ * - Kaynak detayını overlay/modal olarak değil, Kaynaklar sekmesi içinde gösterir.
  *
- * Not:
- * - Bu dosya event bağlamaz.
- * - Buton click işlemleri source-events.js içinde yapılır.
- * - Mock veri içermez.
+ * Kartta gösterilen bilgiler:
+ * - LLM/Backend başlığı
+ * - Taranma zamanı
+ * - Kısa genel özet
+ * - Kaynak domaini
+ *
+ * Detay ekranı:
+ * - source-detail.js tarafından üretilir.
+ * - sources-tab.js içinde gösterilir.
  */
 
 (function () {
@@ -29,6 +33,9 @@
   let sourcesLoaded = false;
   let sourcesError = "";
 
+  let sourceViewMode = "list";
+  let activeSourceDetail = null;
+
   function escapeHtml(text) {
     if (window.AdaptiveRagState?.escapeHtml) {
       return window.AdaptiveRagState.escapeHtml(text);
@@ -42,7 +49,7 @@
       .replaceAll("'", "&#039;");
   }
 
-  function trimText(text, maxLength = 180) {
+  function trimText(text, maxLength = 220) {
     if (window.AdaptiveRagState?.trimText) {
       return window.AdaptiveRagState.trimText(text, maxLength);
     }
@@ -56,38 +63,20 @@
     return `${value.slice(0, maxLength)}...`;
   }
 
-  function getResearchData() {
-    if (window.AdaptiveRagState?.getResearchData) {
-      return window.AdaptiveRagState.getResearchData();
-    }
-
-    if (window.AdaptiveRagStore?.getResearchData) {
-      return window.AdaptiveRagStore.getResearchData();
-    }
-
-    return {
-      pages: [],
-      notes: {
-        generalSummary: ""
-      },
-      timeline: []
-    };
+  function hasChromeRuntime() {
+    return (
+      typeof chrome !== "undefined" &&
+      chrome.runtime &&
+      typeof chrome.runtime.sendMessage === "function"
+    );
   }
 
-  function getSessionPages() {
-    const researchData = getResearchData();
-    return Array.isArray(researchData.pages) ? researchData.pages : [];
-  }
-
-  function hasSessionSources() {
-    return getSessionPages().length > 0;
-  }
-
-  function clearBackendSourceViewCache() {
-    sourcesCache = [];
-    sourcesLoading = false;
-    sourcesLoaded = false;
-    sourcesError = "";
+  function hasChromeStorage() {
+    return (
+      typeof chrome !== "undefined" &&
+      chrome.storage &&
+      chrome.storage.local
+    );
   }
 
   function getShortUrl(url) {
@@ -101,7 +90,7 @@
 
   function formatDate(value) {
     if (!value) {
-      return "";
+      return "Tarih bilgisi yok";
     }
 
     try {
@@ -122,6 +111,49 @@
     }
   }
 
+  function getSourceId(source) {
+    return source?.source_id || source?.sourceId || "";
+  }
+
+  function getSourceTitle(source) {
+    return (
+      source?.llm_title ||
+      source?.generated_title ||
+      source?.source_title ||
+      source?.title ||
+      "Başlıksız kaynak"
+    );
+  }
+
+  function getSourceSummary(source) {
+    return (
+      source?.short_summary ||
+      source?.card_summary ||
+      source?.summary ||
+      "Bu kaynak için kısa özet henüz oluşturulmadı."
+    );
+  }
+
+  function getSourceUrl(source) {
+    return source?.url || source?.source_url || "";
+  }
+
+  function getSourceDomain(source) {
+    const url = getSourceUrl(source);
+
+    return (
+      source?.domain ||
+      source?.site ||
+      source?.hostname ||
+      getShortUrl(url) ||
+      "Kaynak adresi yok"
+    );
+  }
+
+  function getSourceDate(source) {
+    return source?.scanned_at || source?.scannedAt || source?.created_at || "";
+  }
+
   function getActiveTab() {
     return window.AdaptiveRagState?.getActiveTab?.() || "";
   }
@@ -137,7 +169,7 @@
   function sendBackgroundMessage(message) {
     return new Promise((resolve) => {
       try {
-        if (!chrome?.runtime?.sendMessage) {
+        if (!hasChromeRuntime()) {
           resolve({
             success: false,
             message: "chrome.runtime.sendMessage kullanılamıyor."
@@ -167,30 +199,16 @@
     });
   }
 
-  function normalizeLegacyPage(page, index) {
-    const chunks = Array.isArray(page.chunks) ? page.chunks : [];
-
-    return {
-      source_id: page.source_id || page.sourceId || "",
-      title: page.title || "Başlıksız Sayfa",
-      url: page.url || "",
-      domain: page.domain || getShortUrl(page.url || ""),
-      summary: page.summary || "Bu kaynak için özet bulunmuyor.",
-      scanned_at: page.scanned_at || page.scannedAt || "",
-      chunk_count: page.chunk_count || chunks.length,
-      chunks,
-      status: page.status || "ready",
-      __legacy: true,
-      __legacy_index: index
-    };
+  function clearBackendSourceViewCache() {
+    sourcesCache = [];
+    sourcesLoading = false;
+    sourcesLoaded = false;
+    sourcesError = "";
+    sourceViewMode = "list";
+    activeSourceDetail = null;
   }
 
   async function fetchSources({ force = false } = {}) {
-    if (!hasSessionSources()) {
-      clearBackendSourceViewCache();
-      return;
-    }
-
     if (sourcesLoading) {
       return;
     }
@@ -210,16 +228,25 @@
 
     if (!response?.success) {
       sourcesCache = [];
-      sourcesError = response?.message || "Kaynaklar backend'den alınamadı.";
+      sourcesError =
+        response?.message ||
+        "Kaynaklar backend'den alınamadı. Backend çalışmıyor olabilir.";
       sourcesLoaded = true;
       sourcesLoading = false;
+      sourceViewMode = "list";
+      activeSourceDetail = null;
 
       rerenderIfSourcesTabActive();
       return;
     }
 
     const data = response.data || {};
-    const nextSources = Array.isArray(data.sources) ? data.sources : [];
+
+    const nextSources = Array.isArray(data.sources)
+      ? data.sources
+      : Array.isArray(data)
+        ? data
+        : [];
 
     sourcesCache = nextSources;
     sourcesLoaded = true;
@@ -231,19 +258,33 @@
 
   function refreshSources() {
     sourcesLoaded = false;
-
-    if (!hasSessionSources()) {
-      clearBackendSourceViewCache();
-      rerenderIfSourcesTabActive();
-      return Promise.resolve();
-    }
+    sourceViewMode = "list";
+    activeSourceDetail = null;
 
     return fetchSources({ force: true });
   }
 
+  function openSourceDetail(source) {
+    if (!source) {
+      return;
+    }
+
+    activeSourceDetail = source;
+    sourceViewMode = "detail";
+
+    rerenderIfSourcesTabActive();
+  }
+
+  function closeSourceDetail() {
+    activeSourceDetail = null;
+    sourceViewMode = "list";
+
+    rerenderIfSourcesTabActive();
+  }
+
   function loadScanMode() {
     try {
-      if (!chrome?.storage?.local?.get) {
+      if (!hasChromeStorage()) {
         scanModeCache = "manual";
         rerenderIfSourcesTabActive();
         return;
@@ -262,65 +303,56 @@
 
         rerenderIfSourcesTabActive();
       });
-    } catch (error) {
+    } catch {
       scanModeCache = "manual";
       rerenderIfSourcesTabActive();
     }
   }
 
-  chrome.storage?.onChanged?.addListener((changes, areaName) => {
-    if (areaName !== "local") {
-      return;
-    }
+  if (
+    typeof chrome !== "undefined" &&
+    chrome.storage &&
+    chrome.storage.onChanged
+  ) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local") {
+        return;
+      }
 
-    if (!changes[SCAN_SETTINGS_KEY]) {
-      return;
-    }
+      if (!changes[SCAN_SETTINGS_KEY]) {
+        return;
+      }
 
-    const nextSettings = changes[SCAN_SETTINGS_KEY].newValue;
+      const nextSettings = changes[SCAN_SETTINGS_KEY].newValue;
 
-    scanModeCache = nextSettings?.scanMode === "auto" ? "auto" : "manual";
+      scanModeCache = nextSettings?.scanMode === "auto" ? "auto" : "manual";
 
-    rerenderIfSourcesTabActive();
-  });
+      rerenderIfSourcesTabActive();
+    });
+  }
 
   function renderSourcesTab() {
-    const sessionPages = getSessionPages();
-
-    if (sessionPages.length === 0) {
-      clearBackendSourceViewCache();
-
-      return `
-        <div class="rag-sources-layout">
-          ${renderSourcesHeader(0)}
-
-          <div class="rag-source-list">
-            ${renderEmptySources()}
-          </div>
-        </div>
-      `;
+    if (sourceViewMode === "detail" && activeSourceDetail) {
+      return renderInlineSourceDetail();
     }
 
     if (!sourcesLoaded && !sourcesLoading) {
       fetchSources();
     }
 
-    const legacySources = sessionPages.map(normalizeLegacyPage);
-
-    const backendSources = Array.isArray(sourcesCache) ? sourcesCache : [];
-
-    const renderSources = backendSources.length > 0
-      ? backendSources
-      : legacySources;
+    const renderSources = Array.isArray(sourcesCache) ? sourcesCache : [];
 
     let bodyHtml = "";
 
-    if (sourcesLoading && !sourcesLoaded && backendSources.length === 0) {
+    if (sourcesLoading && !sourcesLoaded) {
       bodyHtml = renderLoadingSources();
-    } else if (sourcesError && renderSources.length === 0) {
+    } else if (sourcesError) {
       bodyHtml = renderSourcesError(sourcesError);
     } else if (renderSources.length > 0) {
-      bodyHtml = renderSources.map(renderSourceCard).join("");
+      bodyHtml = `
+        ${renderSources.map(renderSourceCard).join("")}
+        ${renderSourceTimeline(renderSources)}
+      `;
     } else {
       bodyHtml = renderEmptySources();
     }
@@ -336,6 +368,39 @@
     `;
   }
 
+  function renderInlineSourceDetail() {
+    const detailRenderer = window.AdaptiveRagSourceDetail?.renderSourceDetail;
+
+    return `
+      <div class="rag-sources-layout">
+        ${
+          typeof detailRenderer === "function"
+            ? detailRenderer(activeSourceDetail)
+            : renderMissingDetailRenderer()
+        }
+      </div>
+    `;
+  }
+
+  function renderMissingDetailRenderer() {
+    return `
+      <div class="rag-source-detail-view">
+        <button
+          class="rag-source-back-btn"
+          type="button"
+          aria-label="Kaynak listesine dön"
+        >
+          ← Kaynaklara dön
+        </button>
+
+        <div class="rag-empty-state">
+          <strong>Detay ekranı yüklenemedi.</strong>
+          <span>source-detail.js içindeki renderSourceDetail fonksiyonu bulunamadı.</span>
+        </div>
+      </div>
+    `;
+  }
+
   function renderSourcesHeader(sourceCount) {
     const isManualMode = scanModeCache === "manual";
 
@@ -344,11 +409,7 @@
         <div>
           <h3>Kaynaklar</h3>
           <p>
-            ${
-              isManualMode
-                ? "Elle tarama aktif. Mevcut sayfayı kaynaklara ekleyebilirsin."
-                : "Otomatik tarama aktif. Uygun sayfalar arka planda eklenir."
-            }
+            Taradığın sayfaları özetleriyle burada yönetebilirsin.
           </p>
         </div>
 
@@ -377,22 +438,19 @@
         </div>
       </div>
 
-      <div class="rag-small-info">
-        ${sourceCount} kaynak · ${isManualMode ? "Elle mod" : "Otomatik mod"}
+      <div class="rag-source-count-line">
+        ${sourceCount} kaynak · ${isManualMode ? "Elle tarama" : "Otomatik tarama"}
       </div>
     `;
   }
 
   function renderSourceCard(source) {
-    const sourceId = source.source_id || "";
-    const title = source.title || "Başlıksız kaynak";
-    const url = source.url || "";
-    const domain = source.domain || getShortUrl(url);
-    const scannedAt = formatDate(source.scanned_at || source.scannedAt);
-    const chunks = Array.isArray(source.chunks) ? source.chunks : [];
-    const chunkCount = source.chunk_count || chunks.length || 0;
-    const summary = source.summary || "Bu kaynak için özet henüz oluşturulmadı.";
-    const isLegacy = source.__legacy === true;
+    const sourceId = getSourceId(source);
+    const title = getSourceTitle(source);
+    const url = getSourceUrl(source);
+    const domain = getSourceDomain(source);
+    const scannedAt = formatDate(getSourceDate(source));
+    const summary = getSourceSummary(source);
 
     return `
       <article
@@ -412,18 +470,8 @@
           </p>
 
           <div class="rag-source-url">
-            ${escapeHtml(domain || url)}
+            ${escapeHtml(domain)}
           </div>
-
-          <div class="rag-small-info">
-            Parça sayısı: ${chunkCount}
-          </div>
-
-          ${
-            isLegacy && chunks.length
-              ? renderSourceChunks(chunks)
-              : ""
-          }
 
           <div class="rag-source-actions">
             ${
@@ -473,35 +521,154 @@
     `;
   }
 
-  function renderSourceChunks(chunks) {
-    if (!Array.isArray(chunks) || chunks.length === 0) {
+  function renderSourceTimeline(sources) {
+    const timelineGroups = buildTimelineGroups(sources);
+    const groupHtml = timelineGroups
+      .filter((group) => group.sources.length > 0)
+      .map(renderTimelineGroup)
+      .join("");
+
+    if (!groupHtml) {
       return "";
     }
 
-    const firstChunks = chunks.slice(0, 3);
-
     return `
-      <div class="rag-chunks">
-        <div class="rag-subtitle">Kaynak parçaları</div>
+      <section class="rag-timeline-box">
+        <div class="rag-timeline-head">
+          <strong>Zaman çizelgesi</strong>
+          <span>Taranan kaynak geçmişi</span>
+        </div>
 
-        ${firstChunks.map(renderChunkCard).join("")}
+        <div class="rag-timeline-list">
+          ${groupHtml}
+        </div>
+      </section>
+    `;
+  }
 
-        ${
-          chunks.length > 3
-            ? `<div class="rag-small-info">+${chunks.length - 3} parça daha var.</div>`
-            : ""
-        }
+  function buildTimelineGroups(sources) {
+    const now = new Date();
+
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfWeek.getDate() - 7);
+
+    const groups = {
+      today: [],
+      yesterday: [],
+      week: [],
+      older: [],
+      unknown: []
+    };
+
+    sources.forEach((source) => {
+      const rawDate = getSourceDate(source);
+
+      if (!rawDate) {
+        groups.unknown.push(source);
+        return;
+      }
+
+      const date = new Date(rawDate);
+
+      if (Number.isNaN(date.getTime())) {
+        groups.unknown.push(source);
+        return;
+      }
+
+      if (date >= startOfToday) {
+        groups.today.push(source);
+        return;
+      }
+
+      if (date >= startOfYesterday) {
+        groups.yesterday.push(source);
+        return;
+      }
+
+      if (date >= startOfWeek) {
+        groups.week.push(source);
+        return;
+      }
+
+      groups.older.push(source);
+    });
+
+    return [
+      {
+        label: "Bugün",
+        sources: groups.today
+      },
+      {
+        label: "Dün",
+        sources: groups.yesterday
+      },
+      {
+        label: "Bu hafta",
+        sources: groups.week
+      },
+      {
+        label: "Daha eski",
+        sources: groups.older
+      },
+      {
+        label: "Tarih bilgisi yok",
+        sources: groups.unknown
+      }
+    ];
+  }
+
+  function renderTimelineGroup(group) {
+    return `
+      <div class="rag-timeline-group">
+        <div class="rag-timeline-group-title">
+          ${escapeHtml(group.label)}
+        </div>
+
+        ${group.sources.map(renderTimelineItem).join("")}
       </div>
     `;
   }
 
-  function renderChunkCard(chunk) {
-    const text = chunk.text || chunk.content || "";
+  function renderTimelineItem(source) {
+    const sourceId = getSourceId(source);
+    const title = getSourceTitle(source);
+    const scannedAt = formatDate(getSourceDate(source));
+
+    if (!sourceId) {
+      return `
+        <div class="rag-timeline-item">
+          <span class="rag-timeline-dot"></span>
+
+          <div>
+            <strong>${escapeHtml(trimText(title, 60))}</strong>
+            <span>${escapeHtml(scannedAt)}</span>
+          </div>
+        </div>
+      `;
+    }
 
     return `
-      <div class="rag-chunk-card">
-        <p>${escapeHtml(trimText(text, 220))}</p>
-      </div>
+      <button
+        class="rag-timeline-item rag-source-detail-btn"
+        type="button"
+        data-source-id="${escapeHtml(sourceId)}"
+      >
+        <span class="rag-timeline-dot"></span>
+
+        <span>
+          <strong>${escapeHtml(trimText(title, 60))}</strong>
+          <span>${escapeHtml(scannedAt)}</span>
+        </span>
+      </button>
     `;
   }
 
@@ -541,6 +708,10 @@
     return [...sourcesCache];
   }
 
+  function getActiveSourceDetail() {
+    return activeSourceDetail;
+  }
+
   loadScanMode();
 
   window.AdaptiveRagSourcesTab = {
@@ -550,6 +721,12 @@
     loadScanMode,
     refreshSources,
     fetchSources,
+    clearBackendSourceViewCache,
+
+    openSourceDetail,
+    closeSourceDetail,
+    getActiveSourceDetail,
+
     getSourcesCache
   };
 })();

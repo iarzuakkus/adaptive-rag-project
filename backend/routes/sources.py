@@ -1,13 +1,61 @@
+"""
+Dosya: routes/sources.py
+
+Görev:
+- Vector store içinde kayıtlı olan taranmış kaynakları frontend'e sunar.
+- Kaynak listesini döndürür.
+- Kaynakları zaman çizelgesine göre gruplar.
+- Tekil kaynak detayını getirir.
+- Kaynağa ait chunk listesini döndürür.
+- Tekil chunk detayını getirir.
+- Kaynak silme işlemini backend tarafında gerçek olarak uygular.
+
+Endpoint'ler:
+- GET /sources
+- GET /sources/timeline
+- GET /sources/{source_id}
+- DELETE /sources/{source_id}
+- GET /sources/{source_id}/chunks
+- GET /sources/{source_id}/chunks/{chunk_id}
+
+Frontend'e taşınan temel alanlar:
+- source_id
+- title
+- llm_title
+- original_title
+- url
+- domain
+- summary
+- short_summary
+- long_summary
+- summary_status
+- scanned_at
+- chunk_count
+- status
+
+Not:
+- Bu dosya kaynak verisini üretmez.
+- Kaynak verisini vector_store.py üzerinden okur.
+- Eksik alanları frontend bozulmasın diye normalize eder.
+- Silme işlemi sadece frontend kartını kaldırmaz; ilgili source_id'ye ait tüm chunk'ları vector store'dan siler.
+"""
+
 from fastapi import APIRouter, HTTPException
 from datetime import datetime, date, timedelta
 from typing import Any
 
 from core.vector_store import vector_store
 
+
 router = APIRouter()
 
 
 def parse_datetime(value: str | None) -> datetime | None:
+    """
+    ISO formatındaki tarih bilgisini datetime nesnesine çevirir.
+    Hatalı veya boş tarih gelirse None döndürür.
+    """
+
     if not value:
         return None
 
@@ -17,7 +65,116 @@ def parse_datetime(value: str | None) -> datetime | None:
         return None
 
 
+def normalize_source(source: dict[str, Any]) -> dict[str, Any]:
+    """
+    Frontend'e gönderilecek kaynak bilgisini güvenli hale getirir.
+
+    Amaç:
+    - Eski kaynaklarda eksik alan olsa bile frontend'in bozulmasını engellemek.
+    - Yeni LLM alanlarını standart şekilde taşımak.
+    - Kart ve detay ekranının aynı veri yapısıyla çalışmasını sağlamak.
+    """
+
+    title = (
+        source.get("llm_title")
+        or source.get("title")
+        or source.get("original_title")
+        or "Başlıksız kaynak"
+    )
+
+    original_title = (
+        source.get("original_title")
+        or source.get("title")
+        or ""
+    )
+
+    short_summary = (
+        source.get("short_summary")
+        or source.get("summary")
+        or "Bu kaynak için kısa özet henüz oluşturulmadı."
+    )
+
+    long_summary = (
+        source.get("long_summary")
+        or source.get("detail_summary")
+        or source.get("summary")
+        or short_summary
+    )
+
+    summary = (
+        source.get("summary")
+        or short_summary
+    )
+
+    return {
+        **source,
+        "title": title,
+        "llm_title": source.get("llm_title") or title,
+        "original_title": original_title,
+        "summary": summary,
+        "short_summary": short_summary,
+        "long_summary": long_summary,
+        "summary_status": source.get("summary_status") or "unknown",
+        "url": source.get("url") or "",
+        "domain": source.get("domain") or "",
+        "scanned_at": source.get("scanned_at") or "",
+        "chunk_count": source.get("chunk_count") or len(source.get("chunks", [])),
+        "status": source.get("status") or "ready",
+    }
+
+
+def normalize_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
+    """
+    Chunk detayını frontend ve ileride highlight işlemleri için güvenli hale getirir.
+    """
+
+    title = (
+        chunk.get("llm_title")
+        or chunk.get("title")
+        or chunk.get("original_title")
+        or "Başlıksız kaynak"
+    )
+
+    text = (
+        chunk.get("text")
+        or chunk.get("content")
+        or ""
+    )
+
+    short_summary = (
+        chunk.get("short_summary")
+        or chunk.get("summary")
+        or ""
+    )
+
+    long_summary = (
+        chunk.get("long_summary")
+        or chunk.get("summary")
+        or short_summary
+    )
+
+    return {
+        **chunk,
+        "title": title,
+        "llm_title": chunk.get("llm_title") or title,
+        "original_title": chunk.get("original_title") or "",
+        "summary": chunk.get("summary") or short_summary,
+        "short_summary": short_summary,
+        "long_summary": long_summary,
+        "summary_status": chunk.get("summary_status") or "unknown",
+        "text": text,
+        "content": chunk.get("content") or text,
+        "url": chunk.get("url") or "",
+        "domain": chunk.get("domain") or "",
+        "chunk_index": chunk.get("chunk_index", 0),
+    }
+
+
 def get_timeline_group(scanned_at: str | None) -> str:
+    """
+    Kaynağın taranma tarihine göre zaman çizelgesi grubunu belirler.
+    """
+
     scanned_datetime = parse_datetime(scanned_at)
 
     if not scanned_datetime:
@@ -41,6 +198,10 @@ def get_timeline_group(scanned_at: str | None) -> str:
 
 
 def build_timeline(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Kaynak listesini zaman gruplarına ayırır.
+    """
+
     groups = {
         "Bugün": [],
         "Dün": [],
@@ -79,10 +240,13 @@ def list_sources():
     """
     Tüm taranmış kaynakları listeler.
 
-    Frontend kaynaklar sekmesi bu endpoint üzerinden beslenecek.
+    Frontend kaynaklar sekmesi bu endpoint üzerinden beslenir.
     """
 
-    sources = vector_store.get_sources()
+    sources = [
+        normalize_source(source)
+        for source in vector_store.get_sources()
+    ]
 
     return {
         "success": True,
@@ -104,7 +268,11 @@ def get_sources_timeline():
     - Tarihi bilinmeyen
     """
 
-    sources = vector_store.get_sources()
+    sources = [
+        normalize_source(source)
+        for source in vector_store.get_sources()
+    ]
+
     timeline = build_timeline(sources)
 
     return {
@@ -121,7 +289,8 @@ def get_source_detail(source_id: str):
 
     Dönen veri:
     - source metadata
-    - summary
+    - kısa özet
+    - geniş özet
     - chunk listesi
     """
 
@@ -137,9 +306,16 @@ def get_source_detail(source_id: str):
             },
         )
 
+    normalized_detail = normalize_source(detail)
+
+    normalized_detail["chunks"] = [
+        normalize_chunk(chunk)
+        for chunk in detail.get("chunks", [])
+    ]
+
     return {
         "success": True,
-        "source": detail,
+        "source": normalized_detail,
     }
 
 
@@ -178,7 +354,7 @@ def get_source_chunks(source_id: str):
     """
     Bir kaynağa ait chunk listesini getirir.
 
-    Highlight, detay ekranı ve notlara aktarma tarafında kullanılacak.
+    Highlight, detay ekranı ve notlara aktarma tarafında kullanılabilir.
     """
 
     detail = vector_store.get_source_detail(source_id)
@@ -193,11 +369,16 @@ def get_source_chunks(source_id: str):
             },
         )
 
+    chunks = [
+        normalize_chunk(chunk)
+        for chunk in detail.get("chunks", [])
+    ]
+
     return {
         "success": True,
         "source_id": source_id,
-        "count": len(detail.get("chunks", [])),
-        "chunks": detail.get("chunks", []),
+        "count": len(chunks),
+        "chunks": chunks,
     }
 
 
@@ -228,5 +409,5 @@ def get_chunk_detail(source_id: str, chunk_id: str):
 
     return {
         "success": True,
-        "chunk": chunk,
+        "chunk": normalize_chunk(chunk),
     }

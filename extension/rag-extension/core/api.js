@@ -1,46 +1,109 @@
-const API_BASE = "http://127.0.0.1:8000";
+/*
+  Dosya: api.js
 
-async function requestJson(path, options = {}) {
-  try {
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(options.headers || {})
+  Görev:
+  - Frontend/widget/content script tarafı için API yardımcı fonksiyonlarını sağlar.
+  - Backend'e doğrudan fetch atmaz.
+  - Tüm backend isteklerini background.js üzerinden gönderir.
+
+  Akış:
+  UI / content script
+  → api.js
+  → chrome.runtime.sendMessage
+  → background.js
+  → backend-client.js
+  → FastAPI
+
+  Not:
+  - API_BASE burada tutulmaz.
+  - Timeout burada yönetilmez.
+  - Backend adresleri sadece backend-client.js içinde kalmalıdır.
+*/
+
+function hasRuntimeMessaging() {
+  return (
+    typeof chrome !== "undefined" &&
+    chrome.runtime &&
+    typeof chrome.runtime.sendMessage === "function"
+  );
+}
+
+function sendRuntimeMessage(type, payload = {}, extra = {}) {
+  return new Promise((resolve) => {
+    try {
+      if (!hasRuntimeMessaging()) {
+        resolve({
+          success: false,
+          message: "chrome.runtime.sendMessage kullanılamıyor."
+        });
+
+        return;
       }
-    });
 
-    const data = await response.json().catch(() => null);
+      chrome.runtime.sendMessage(
+        {
+          type,
+          payload,
+          ...extra
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            resolve({
+              success: false,
+              message: chrome.runtime.lastError.message
+            });
 
-    if (!response.ok) {
-      const message =
-        data?.detail?.message ||
-        data?.message ||
-        data?.detail ||
-        `İstek başarısız. Status: ${response.status}`;
+            return;
+          }
 
-      throw new Error(
-        typeof message === "string" ? message : JSON.stringify(message)
+          resolve(response);
+        }
       );
+    } catch (error) {
+      resolve({
+        success: false,
+        message: error?.message || "Background mesajı gönderilemedi."
+      });
     }
+  });
+}
 
-    return data;
-  } catch (error) {
-    console.error(`API hatası: ${path}`, error);
+async function requestBackground(type, payload = {}, extra = {}, fallbackMessage = "İstek başarısız.") {
+  const response = await sendRuntimeMessage(type, payload, extra);
 
+  if (!response?.success) {
     return {
       success: false,
-      message: error.message,
-      error: error.message
+      message: response?.message || fallbackMessage,
+      error: response?.error || response?.message || fallbackMessage
     };
   }
+
+  const data = response.data;
+
+  if (!data) {
+    return {
+      success: true
+    };
+  }
+
+  if (typeof data.success === "boolean") {
+    return data;
+  }
+
+  return {
+    success: true,
+    ...data
+  };
 }
 
 async function sendPageData(payload) {
-  return await requestJson("/ingest", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+  return await requestBackground(
+    "INGEST_DATA",
+    payload,
+    {},
+    "Sayfa backend'e gönderilemedi."
+  );
 }
 
 async function askQuestion(question, context = {}) {
@@ -52,10 +115,12 @@ async function askQuestion(question, context = {}) {
     top_k: context.top_k || 5
   };
 
-  const result = await requestJson("/chat", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+  const result = await requestBackground(
+    "CHAT_QUESTION",
+    payload,
+    {},
+    "Chat isteği başarısız."
+  );
 
   if (!result || result.success === false) {
     return {
@@ -81,16 +146,23 @@ async function askQuestion(question, context = {}) {
 }
 
 async function sendPdfUrl(pdfUrl) {
-  return await requestJson("/pdf", {
-    method: "POST",
-    body: JSON.stringify({ pdf_url: pdfUrl })
-  });
+  return await requestBackground(
+    "PDF_URL",
+    {
+      pdf_url: pdfUrl
+    },
+    {},
+    "PDF isteği başarısız."
+  );
 }
 
 async function getSources() {
-  const result = await requestJson("/sources", {
-    method: "GET"
-  });
+  const result = await requestBackground(
+    "GET_SOURCES",
+    {},
+    {},
+    "Kaynaklar getirilemedi."
+  );
 
   if (!result || result.success === false) {
     return {
@@ -103,15 +175,18 @@ async function getSources() {
 
   return {
     success: true,
-    count: result.count || 0,
+    count: result.count || result.sources?.length || 0,
     sources: result.sources || []
   };
 }
 
 async function getSourceTimeline() {
-  const result = await requestJson("/sources/timeline", {
-    method: "GET"
-  });
+  const result = await requestBackground(
+    "GET_SOURCE_TIMELINE",
+    {},
+    {},
+    "Kaynak zaman çizelgesi getirilemedi."
+  );
 
   if (!result || result.success === false) {
     return {
@@ -124,7 +199,7 @@ async function getSourceTimeline() {
 
   return {
     success: true,
-    count: result.count || 0,
+    count: result.count || result.timeline?.length || 0,
     timeline: result.timeline || []
   };
 }
@@ -138,9 +213,16 @@ async function getSourceDetail(sourceId) {
     };
   }
 
-  const result = await requestJson(`/sources/${encodeURIComponent(sourceId)}`, {
-    method: "GET"
-  });
+  const result = await requestBackground(
+    "GET_SOURCE_DETAIL",
+    {
+      sourceId
+    },
+    {
+      sourceId
+    },
+    "Kaynak detayı getirilemedi."
+  );
 
   if (!result || result.success === false) {
     return {
@@ -152,7 +234,7 @@ async function getSourceDetail(sourceId) {
 
   return {
     success: true,
-    source: result.source || null
+    source: result.source || result
   };
 }
 
@@ -164,9 +246,16 @@ async function deleteSource(sourceId) {
     };
   }
 
-  const result = await requestJson(`/sources/${encodeURIComponent(sourceId)}`, {
-    method: "DELETE"
-  });
+  const result = await requestBackground(
+    "DELETE_SOURCE",
+    {
+      sourceId
+    },
+    {
+      sourceId
+    },
+    "Kaynak silinemedi."
+  );
 
   if (!result || result.success === false) {
     return {
@@ -179,7 +268,7 @@ async function deleteSource(sourceId) {
   return {
     success: true,
     message: result.message || "Kaynak başarıyla silindi.",
-    result: result.result || null
+    result: result.result || result || null
   };
 }
 
@@ -193,11 +282,15 @@ async function getSourceChunks(sourceId) {
     };
   }
 
-  const result = await requestJson(
-    `/sources/${encodeURIComponent(sourceId)}/chunks`,
+  const result = await requestBackground(
+    "GET_SOURCE_CHUNKS",
     {
-      method: "GET"
-    }
+      sourceId
+    },
+    {
+      sourceId
+    },
+    "Kaynak chunk listesi getirilemedi."
   );
 
   if (!result || result.success === false) {
@@ -212,7 +305,7 @@ async function getSourceChunks(sourceId) {
   return {
     success: true,
     source_id: result.source_id || sourceId,
-    count: result.count || 0,
+    count: result.count || result.chunks?.length || 0,
     chunks: result.chunks || []
   };
 }
@@ -226,11 +319,17 @@ async function getChunkDetail(sourceId, chunkId) {
     };
   }
 
-  const result = await requestJson(
-    `/sources/${encodeURIComponent(sourceId)}/chunks/${encodeURIComponent(chunkId)}`,
+  const result = await requestBackground(
+    "GET_CHUNK_DETAIL",
     {
-      method: "GET"
-    }
+      sourceId,
+      chunkId
+    },
+    {
+      sourceId,
+      chunkId
+    },
+    "Chunk detayı getirilemedi."
   );
 
   if (!result || result.success === false) {
@@ -243,7 +342,7 @@ async function getChunkDetail(sourceId, chunkId) {
 
   return {
     success: true,
-    chunk: result.chunk || null
+    chunk: result.chunk || result
   };
 }
 

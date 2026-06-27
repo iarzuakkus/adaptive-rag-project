@@ -1,3 +1,20 @@
+"""
+Dosya: routes/ingest.py
+
+Görev:
+- Extension tarafından taranan web sayfası bloklarını backend'e alır.
+- Sayfa içeriğindeki eklenti arayüz gürültülerini temizler.
+- Kalite kontrol uygular.
+- Temiz içerikleri semantic chunk'lara böler.
+- Her tarama için source_id, her chunk için chunk_id üretir.
+- Kaynak için LLM destekli başlık, kısa özet ve geniş özet üretir.
+- Chunk metadata'sına kaynak bilgilerini ekler.
+- Embedding üretip chunk'ları vector store'a kaydeder.
+
+Bu dosya test dosyası değildir.
+Kaynakların sisteme giriş yaptığı ana backend route dosyasıdır.
+"""
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List, Optional
@@ -7,8 +24,10 @@ import uuid
 
 from services.quality_control_service import apply_quality_control
 from services.chunking_service import semantic_chunk_blocks
+from services.source_summary_service import generate_source_metadata
 from core.embeddings import generate_embeddings
 from core.vector_store import vector_store
+
 
 router = APIRouter()
 
@@ -50,7 +69,7 @@ def extract_domain(url: str) -> str:
 def is_extension_noise(text: str) -> bool:
     """
     Extension widget'ından veya eklenti arayüzünden gelen metinleri ayıklar.
-    Bu metinler sayfa içeriği olmadığı için vector store'a eklenmemeli.
+    Bu metinler gerçek sayfa içeriği olmadığı için vector store'a eklenmemelidir.
     """
 
     if not text:
@@ -84,11 +103,10 @@ def enrich_chunks(
     scanned_at: str,
 ) -> list[dict]:
     """
-    Chunk'lara kaynak metadata bilgisi ekler.
+    Chunk'lara temel kaynak metadata bilgisi ekler.
 
-    Her ingest isteği tek bir kaynak olarak kabul edilir.
-    Bu kaynak source_id ile temsil edilir.
-    Her chunk ise ayrı chunk_id taşır.
+    Bu aşamada henüz LLM başlığı ve özetleri eklenmez.
+    LLM metadata'sı daha sonra apply_source_metadata_to_chunks ile eklenir.
     """
 
     enriched = []
@@ -112,9 +130,14 @@ def enrich_chunks(
             "source_id": source_id,
             "chunk_id": chunk_id,
             "title": title or "Başlıksız kaynak",
+            "original_title": title or "",
             "url": url,
             "domain": domain,
             "summary": "",
+            "short_summary": "",
+            "long_summary": "",
+            "llm_title": "",
+            "summary_status": "not_generated",
             "status": "ready",
             "content": clean_text,
             "text": clean_text,
@@ -127,8 +150,14 @@ def enrich_chunks(
                 "source_id": source_id,
                 "chunk_id": chunk_id,
                 "title": title or "Başlıksız kaynak",
+                "original_title": title or "",
                 "url": url,
                 "domain": domain,
+                "summary": "",
+                "short_summary": "",
+                "long_summary": "",
+                "llm_title": "",
+                "summary_status": "not_generated",
                 "chunk_index": index,
                 "source": "web_page",
                 "scanned_at": scanned_at,
@@ -138,27 +167,81 @@ def enrich_chunks(
     return enriched
 
 
+def apply_source_metadata_to_chunks(
+    chunks: list[dict],
+    source_metadata: dict,
+    original_title: str,
+) -> list[dict]:
+    """
+    LLM veya fallback ile üretilen kaynak metadata'sını tüm chunk'lara işler.
+    Böylece /sources, /chat ve retriever çıktıları aynı kaynak bilgilerini taşıyabilir.
+    """
+
+    llm_title = source_metadata.get("llm_title") or original_title or "Başlıksız kaynak"
+    short_summary = source_metadata.get("short_summary") or ""
+    long_summary = source_metadata.get("long_summary") or short_summary
+    summary = source_metadata.get("summary") or short_summary
+    summary_status = source_metadata.get("summary_status", "unknown")
+
+    for chunk in chunks:
+        chunk["title"] = llm_title
+        chunk["llm_title"] = llm_title
+        chunk["original_title"] = original_title or ""
+        chunk["summary"] = summary
+        chunk["short_summary"] = short_summary
+        chunk["long_summary"] = long_summary
+        chunk["summary_status"] = summary_status
+
+        chunk_metadata = chunk.setdefault("metadata", {})
+
+        chunk_metadata["title"] = llm_title
+        chunk_metadata["llm_title"] = llm_title
+        chunk_metadata["original_title"] = original_title or ""
+        chunk_metadata["summary"] = summary
+        chunk_metadata["short_summary"] = short_summary
+        chunk_metadata["long_summary"] = long_summary
+        chunk_metadata["summary_status"] = summary_status
+
+    return chunks
+
+
+def build_empty_source_metadata(title: str, domain: str) -> dict:
+    """
+    Hiç temiz chunk oluşmazsa kullanılacak güvenli kaynak metadata'sı.
+    """
+
+    safe_title = title or domain or "Başlıksız kaynak"
+    safe_summary = "Bu kaynak için özet oluşturulamadı çünkü temiz içerik bulunamadı."
+
+    return {
+        "llm_title": safe_title,
+        "short_summary": safe_summary,
+        "long_summary": safe_summary,
+        "summary": safe_summary,
+        "summary_status": "fallback_empty_chunks",
+    }
+
+
 @router.post("/ingest")
 def ingest(data: IngestRequest):
-    print("\n" + "=" * 80)
-    print("YENİ INGEST İSTEĞİ")
-    print("=" * 80)
-
     source_id = make_source_id()
     scanned_at = now_iso()
     domain = extract_domain(data.url)
 
-    print("Source ID:", source_id)
-    print("Title:", data.title)
-    print("URL:", data.url)
-    print("Domain:", domain)
-    print("Scanned At:", scanned_at)
-    print("Gelen blok sayısı:", len(data.blocks))
+    print("\n" + "=" * 80)
+    print("[INGEST] Yeni kaynak alındı")
+    print("=" * 80)
+    print("[INGEST] Source ID:", source_id)
+    print("[INGEST] Title:", data.title)
+    print("[INGEST] URL:", data.url)
+    print("[INGEST] Domain:", domain)
+    print("[INGEST] Gelen blok sayısı:", len(data.blocks))
 
     raw_blocks = [block.model_dump() for block in data.blocks]
 
     raw_blocks = [
-        block for block in raw_blocks
+        block
+        for block in raw_blocks
         if not is_extension_noise(block.get("text", ""))
     ]
 
@@ -166,13 +249,6 @@ def ingest(data: IngestRequest):
 
     clean_blocks = qc_result["blocks"]
     qc_stats = qc_result["stats"]
-
-    print("\nQUALITY CONTROL")
-    print("-" * 40)
-    print("Toplam blok:", qc_stats["total_blocks"])
-    print("Düşük kalite elenen:", qc_stats["removed_low_quality"])
-    print("Tekrar elenen:", qc_stats["removed_duplicates"])
-    print("Kalan blok:", qc_stats["kept_blocks"])
 
     raw_chunks = semantic_chunk_blocks(clean_blocks)
 
@@ -184,48 +260,62 @@ def ingest(data: IngestRequest):
         scanned_at=scanned_at,
     )
 
-    print("\nSEMANTIC CHUNKING")
-    print("-" * 40)
-    print("Oluşturulan ham chunk sayısı:", len(raw_chunks))
-    print("Kaydedilecek temiz chunk sayısı:", len(chunks))
+    print("[INGEST] Kalite kontrol sonrası blok:", len(clean_blocks))
+    print("[INGEST] Ham chunk sayısı:", len(raw_chunks))
+    print("[INGEST] Kaydedilecek temiz chunk sayısı:", len(chunks))
 
-    for chunk in chunks[:3]:
-        print("\n" + "=" * 80)
-        print(f"Source ID: {chunk['source_id']}")
-        print(f"Chunk ID: {chunk['chunk_id']}")
-        print(f"Title: {chunk['title']}")
-        print(f"URL: {chunk['url']}")
-        print(f"Domain: {chunk['domain']}")
-        print(f"Chunk Index: {chunk['chunk_index']}")
-        print(f"Sentence Count: {chunk['sentence_count']}")
-        print(f"Character Count: {chunk['char_count']}")
-        print("-" * 80)
-        print(chunk["content"])
+    if chunks:
+        source_metadata = generate_source_metadata(
+            original_title=data.title,
+            url=data.url,
+            domain=domain,
+            chunks=chunks,
+        )
+    else:
+        source_metadata = build_empty_source_metadata(data.title, domain)
+
+    chunks = apply_source_metadata_to_chunks(
+        chunks=chunks,
+        source_metadata=source_metadata,
+        original_title=data.title,
+    )
+
+    llm_title = source_metadata.get("llm_title") or data.title or "Başlıksız kaynak"
+    short_summary = source_metadata.get("short_summary") or ""
+    long_summary = source_metadata.get("long_summary") or short_summary
+    summary = source_metadata.get("summary") or short_summary
+    summary_status = source_metadata.get("summary_status", "unknown")
+
+    print("[INGEST] Kaynak başlığı:", llm_title)
+    print("[INGEST] Özet durumu:", summary_status)
 
     chunk_texts = [chunk["content"] for chunk in chunks]
 
     if chunk_texts:
         chunk_embeddings = generate_embeddings(chunk_texts)
         vector_store.add_documents(chunks, chunk_embeddings)
+        print("[INGEST] Vector store'a kaydedilen chunk:", len(chunks))
     else:
-        print("\nEmbedding üretilmedi: kaydedilecek temiz chunk yok.")
+        print("[INGEST] Embedding üretilmedi: kaydedilecek temiz chunk yok.")
 
-    print("\nVECTOR STORE")
-    print("-" * 40)
-    print("Kayıtlı doküman sayısı:", len(vector_store.documents))
-    print("FAISS index.ntotal:", vector_store.index.ntotal)
-
-    print("\nINGEST TAMAMLANDI")
+    print("[INGEST] Toplam doküman:", len(vector_store.documents))
+    print("[INGEST] FAISS index.ntotal:", vector_store.index.ntotal)
+    print("[INGEST] Tamamlandı")
     print("=" * 80)
 
     return {
         "success": True,
         "source": {
             "source_id": source_id,
-            "title": data.title,
+            "title": llm_title,
+            "llm_title": llm_title,
+            "original_title": data.title,
             "url": data.url,
             "domain": domain,
-            "summary": "",
+            "summary": summary,
+            "short_summary": short_summary,
+            "long_summary": long_summary,
+            "summary_status": summary_status,
             "scanned_at": scanned_at,
             "chunk_count": len(chunks),
             "status": "ready",

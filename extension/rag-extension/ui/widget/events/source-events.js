@@ -6,8 +6,9 @@
  * - Elle tarama modundaki "Sayfayı tara" butonunu mevcut sayfa tarama akışına bağlar.
  * - Backend kaynak listesini yeniler.
  * - Kaynak detay isteğini backend'e gönderir.
+ * - Kaynak detayını Kaynaklar sekmesinin içinde açar.
  * - "Siteye git" butonlarını çalıştırır.
- * - "Sil" butonuyla kaynağı backend + vector store üzerinden siler.
+ * - "Sil" butonuyla kaynağı backend üzerinden siler.
  *
  * Not:
  * - Mock veri üretmez.
@@ -31,6 +32,14 @@
     document.body.dataset.ragSourceEventsBound = "1";
 
     document.addEventListener("click", async (event) => {
+      const backButton = event.target.closest(".rag-source-back-btn");
+
+      if (backButton) {
+        event.preventDefault();
+        handleBackToSources();
+        return;
+      }
+
       const scanButton = event.target.closest(
         "#scanCurrentPageBtn, [data-rag-action='scan-current-page']"
       );
@@ -76,27 +85,38 @@
 
   function sendBackgroundMessage(message) {
     return new Promise((resolve) => {
-      if (!chrome?.runtime?.sendMessage) {
-        resolve({
-          success: false,
-          message: "chrome.runtime.sendMessage kullanılamıyor."
-        });
-
-        return;
-      }
-
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError) {
+      try {
+        if (
+          typeof chrome === "undefined" ||
+          !chrome.runtime ||
+          typeof chrome.runtime.sendMessage !== "function"
+        ) {
           resolve({
             success: false,
-            message: chrome.runtime.lastError.message
+            message: "chrome.runtime.sendMessage kullanılamıyor."
           });
 
           return;
         }
 
-        resolve(response);
-      });
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            resolve({
+              success: false,
+              message: chrome.runtime.lastError.message
+            });
+
+            return;
+          }
+
+          resolve(response);
+        });
+      } catch (error) {
+        resolve({
+          success: false,
+          message: error?.message || "Background mesajı gönderilemedi."
+        });
+      }
     });
   }
 
@@ -180,6 +200,17 @@
     }
   }
 
+  function renderSourcesTabFallback() {
+    if (typeof lastRenderActiveTab === "function") {
+      lastRenderActiveTab();
+      return;
+    }
+
+    if (window.AdaptiveRagWidget?.renderActiveTab) {
+      window.AdaptiveRagWidget.renderActiveTab();
+    }
+  }
+
   function setButtonLoading(button, isLoading, loadingText) {
     if (!button) {
       return;
@@ -195,6 +226,15 @@
     button.disabled = false;
     button.textContent = button.dataset.originalText || button.textContent;
     delete button.dataset.originalText;
+  }
+
+  function handleBackToSources() {
+    if (window.AdaptiveRagSourcesTab?.closeSourceDetail) {
+      window.AdaptiveRagSourcesTab.closeSourceDetail();
+      return;
+    }
+
+    renderSourcesTabFallback();
   }
 
   async function handleRefreshSources(refreshButton, renderActiveTab) {
@@ -247,13 +287,8 @@
         throw new Error("Backend kaynak detayı döndürmedi.");
       }
 
-      if (window.AdaptiveRagSourceDetail?.openSourceDetail) {
-        window.AdaptiveRagSourceDetail.openSourceDetail(source);
-        return;
-      }
-
-      if (window.AdaptiveRagSourceDetail?.renderSourceDetail) {
-        window.AdaptiveRagSourceDetail.renderSourceDetail(source);
+      if (window.AdaptiveRagSourcesTab?.openSourceDetail) {
+        window.AdaptiveRagSourcesTab.openSourceDetail(source);
         return;
       }
 
@@ -297,9 +332,7 @@
       return;
     }
 
-    const shouldDelete = confirm(
-      "Bu kaynağı silmek istediğine emin misin? Kaynağa ait tüm parçalar vector store'dan kaldırılacak."
-    );
+    const shouldDelete = confirm("Bu kaynağı silmek istediğine emin misin?");
 
     if (!shouldDelete) {
       return;

@@ -2,27 +2,75 @@
   Dosya: widget-sources.css
 
   Görev:
-  - Kaynaklar sekmesinin ana görünümünü yönetir.
-  - Backend'den gelen kaynak kartları, URL bilgisi,
-    kaynak aksiyonları ve timeline alanları burada tasarlanır.
+  - Kaynaklar sekmesinin liste görünümünü yönetir.
+  - Kaynak kartları, header aksiyonları ve zaman çizelgesi burada tasarlanır.
 
   Not:
-  - Kaynak detay paneli widget-source-detail.css dosyasında yönetilir.
+  - Kaynak detay ekranı bu dosyada yönetilmez.
+  - Detay ekranı widget-source-detail.css içindedir.
+  - Geliştirici bilgileri, chunk sayısı, status ve source_id kullanıcı arayüzünde gösterilmez.
 */
 
+.rag-sources-layout,
+.rag-sources-layout *,
+.rag-sources-layout *::before,
+.rag-sources-layout *::after {
+  box-sizing: border-box;
+}
+
 .rag-sources-layout {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
 .rag-source-list {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
 }
 
-/* Header aksiyonları */
+/* Header */
+.rag-sources-layout .rag-section-head {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rag-sources-layout .rag-section-head > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.rag-sources-layout .rag-section-head h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  line-height: 1.25;
+  font-weight: 600;
+  color: var(--rag-color-text);
+}
+
+.rag-sources-layout .rag-section-head p {
+  margin: 0;
+  max-width: 170px;
+  font-size: 11px;
+  line-height: 1.45;
+  font-weight: 400;
+  color: var(--rag-color-text-muted);
+}
+
 .rag-source-head-actions {
   display: flex;
   align-items: center;
@@ -31,107 +79,156 @@
   flex-shrink: 0;
 }
 
-.rag-sources-layout .rag-section-head .rag-primary-btn,
-.rag-sources-layout .rag-section-head .rag-secondary-btn {
-  flex-shrink: 0;
+.rag-source-head-actions .rag-primary-btn,
+.rag-source-head-actions .rag-secondary-btn {
+  min-height: 34px;
+  padding-inline: 13px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rag-source-count-line {
+  margin-top: -2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 400;
+  color: var(--rag-color-text-muted);
 }
 
 /* Kaynak kartı */
 .rag-source-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
-  padding: 0;
-  border-radius: var(--rag-radius-md);
+  border-radius: 16px;
   border: 1px solid rgba(238, 167, 255, 0.11);
   background:
-    radial-gradient(circle at top left, rgba(255, 0, 31, 0.075), transparent 34%),
-    rgba(255, 255, 255, 0.035);
+    radial-gradient(circle at top left, rgba(255, 0, 31, 0.045), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.036), rgba(255, 255, 255, 0.02));
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
-/* Kaynak kartı başlığı */
+/* Kart başlığı */
 .rag-source-card-head {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 11px 12px 8px;
   border: none;
   background:
-    linear-gradient(135deg, rgba(255, 0, 31, 0.08), rgba(238, 167, 255, 0.045)),
+    linear-gradient(135deg, rgba(255, 0, 31, 0.045), rgba(238, 167, 255, 0.028)),
     transparent;
   color: inherit;
   text-align: left;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 9px;
-  padding: 10px 11px;
   font-family: var(--rag-font-family);
+}
+
+.rag-source-card-head > div {
+  width: 100%;
+  min-width: 0;
 }
 
 .rag-source-card-head strong {
   display: block;
-  margin: 0 0 3px;
+  width: 100%;
+  max-width: 100%;
+  max-height: 36px;
+  margin: 0 0 5px;
+  overflow: hidden;
   font-size: 12px;
-  line-height: 1.25;
+  line-height: 1.38;
   color: var(--rag-color-text);
-  font-weight: 750;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .rag-source-card-head span {
   display: block;
   font-size: 10px;
+  line-height: 1.35;
+  font-weight: 400;
   color: var(--rag-color-text-muted);
 }
 
-/* Kart içerik alanı */
+/* Kart içerik */
 .rag-source-card-body {
-  display: block;
-  padding: 0 11px 11px;
-  border-top: 1px solid rgba(238, 167, 255, 0.1);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 12px 12px;
+  border-top: 1px solid rgba(238, 167, 255, 0.07);
 }
 
-/* Kaynak özeti */
+/* Kısa özet */
 .rag-source-summary {
-  margin: 10px 0 9px;
+  width: 100%;
+  max-width: 100%;
+  max-height: 66px;
+  margin: 10px 0 10px;
+  overflow: hidden;
   font-size: 11px;
-  line-height: 1.45;
+  line-height: 1.5;
+  font-weight: 400;
   color: var(--rag-color-text-muted);
 }
 
-/* URL kutusu */
+/* Domain */
 .rag-source-url {
-  margin-bottom: 9px;
-  padding: 8px 9px;
-  border-radius: var(--rag-radius-sm);
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(238, 167, 255, 0.09);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-bottom: 10px;
+  padding: 7px 9px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid rgba(238, 167, 255, 0.075);
   font-size: 10px;
   line-height: 1.35;
+  font-weight: 400;
   color: var(--rag-color-text-soft);
-  word-break: break-all;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Kaynak kartı aksiyonları */
+/* Kart aksiyonları */
 .rag-source-actions {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 7px;
   margin-top: 10px;
+  overflow: hidden;
 }
 
 .rag-source-actions .rag-secondary-btn,
 .rag-source-actions .rag-danger-btn {
   min-height: 30px;
+  padding: 7px 11px;
+  font-size: 10.5px;
+  line-height: 1;
+  font-weight: 550;
+  white-space: nowrap;
 }
 
 /* Silme butonu */
 .rag-danger-btn {
-  border: 1px solid rgba(255, 83, 112, 0.34);
+  border: 1px solid rgba(255, 83, 112, 0.3);
   background:
-    linear-gradient(135deg, rgba(255, 0, 31, 0.16), rgba(255, 255, 255, 0.035));
+    linear-gradient(135deg, rgba(255, 0, 31, 0.11), rgba(255, 255, 255, 0.028));
   color: #ffd8df;
   border-radius: var(--rag-radius-sm);
   padding: 7px 10px;
   font-family: var(--rag-font-family);
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 550;
   cursor: pointer;
   transition:
     transform var(--rag-transition-normal),
@@ -142,9 +239,9 @@
 
 .rag-danger-btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(255, 83, 112, 0.62);
+  border-color: rgba(255, 83, 112, 0.55);
   background:
-    linear-gradient(135deg, rgba(255, 0, 31, 0.24), rgba(255, 255, 255, 0.05));
+    linear-gradient(135deg, rgba(255, 0, 31, 0.18), rgba(255, 255, 255, 0.04));
 }
 
 .rag-danger-btn:disabled,
@@ -155,99 +252,140 @@
   transform: none;
 }
 
-/* Chunk alanı */
-.rag-chunks {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin-top: 9px;
-}
-
-.rag-chunk-card {
-  background:
-    radial-gradient(circle at top left, rgba(255, 0, 31, 0.08), transparent 35%),
-    rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(238, 167, 255, 0.1);
-  border-radius: var(--rag-radius-sm);
-  padding: 8px 9px;
-}
-
-.rag-chunk-card p {
-  margin: 0;
-  font-size: 10.5px;
-  line-height: 1.42;
-  color: var(--rag-color-text-muted);
-}
-
-.rag-chunk-actions {
-  margin-top: 8px;
-}
-
-.rag-chunk-actions .rag-link-btn {
-  margin-right: 8px;
-  margin-bottom: 5px;
-}
-
 /* Timeline */
 .rag-timeline-box {
-  padding: 10px;
-  margin-top: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 11px;
+  margin-top: 2px;
+  border-radius: 16px;
+  border: 1px solid rgba(238, 167, 255, 0.09);
+  background:
+    radial-gradient(circle at top right, rgba(238, 167, 255, 0.04), transparent 32%),
+    rgba(255, 255, 255, 0.022);
+}
+
+.rag-timeline-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 9px;
+}
+
+.rag-timeline-head strong {
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--rag-color-text);
+  font-weight: 600;
+}
+
+.rag-timeline-head span {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--rag-color-text-muted);
+  font-weight: 400;
 }
 
 .rag-timeline-list {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 9px;
+  overflow: hidden;
+}
+
+.rag-timeline-group {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rag-timeline-group-title {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--rag-color-text-muted);
+  font-weight: 500;
 }
 
 .rag-timeline-item {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   position: relative;
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 8px 8px 8px 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(238, 167, 255, 0.07);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.022);
+  color: inherit;
+  text-align: left;
+  font-family: var(--rag-font-family);
 }
 
-.rag-timeline-item:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  left: 5px;
-  top: 22px;
-  bottom: -8px;
-  width: 2px;
-  background: linear-gradient(
-    180deg,
-    rgba(238, 167, 255, 0.36),
-    rgba(255, 0, 31, 0.12)
-  );
-  border-radius: 999px;
+button.rag-timeline-item {
+  cursor: pointer;
+  transition:
+    transform var(--rag-transition-normal),
+    border-color var(--rag-transition-normal),
+    background var(--rag-transition-normal);
+}
+
+button.rag-timeline-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(238, 167, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .rag-timeline-dot {
-  width: 11px;
-  height: 11px;
-  margin-top: 2px;
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
   border-radius: 50%;
   background: var(--rag-gradient-main);
   box-shadow:
-    0 0 8px rgba(255, 0, 31, 0.28),
-    0 0 9px rgba(238, 167, 255, 0.22);
+    0 0 7px rgba(255, 0, 31, 0.22),
+    0 0 8px rgba(238, 167, 255, 0.18);
   flex-shrink: 0;
+}
+
+.rag-timeline-item > span:last-child,
+.rag-timeline-item > div {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .rag-timeline-item strong {
   display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
   margin-bottom: 2px;
-  font-size: 11px;
+  font-size: 10.5px;
   line-height: 1.3;
   color: var(--rag-color-text);
-  font-weight: 750;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.rag-timeline-item span {
+.rag-timeline-item span span,
+.rag-timeline-item div span {
   display: block;
-  font-size: 10px;
+  font-size: 9.5px;
+  line-height: 1.3;
   color: var(--rag-color-text-muted);
+  font-weight: 400;
 }
 
 /* Mobil uyum */
@@ -256,34 +394,44 @@
     gap: 9px;
   }
 
+  .rag-sources-layout .rag-section-head {
+    gap: 8px;
+  }
+
+  .rag-sources-layout .rag-section-head p {
+    max-width: 155px;
+  }
+
   .rag-source-head-actions {
-    flex-direction: column;
-    align-items: flex-end;
     gap: 6px;
   }
 
+  .rag-source-head-actions .rag-primary-btn,
+  .rag-source-head-actions .rag-secondary-btn {
+    min-height: 32px;
+    padding-inline: 11px;
+    font-size: 10.5px;
+  }
+
   .rag-source-card-head {
-    padding: 9px 10px;
+    padding: 10px 11px 8px;
   }
 
   .rag-source-card-head strong {
-    font-size: 11.5px;
+    font-size: 11.8px;
   }
 
   .rag-source-card-body {
-    padding: 0 10px 10px;
+    padding: 0 11px 11px;
   }
 
   .rag-source-summary {
-    font-size: 10.5px;
+    max-height: 64px;
+    font-size: 10.8px;
   }
 
   .rag-source-actions {
     gap: 6px;
-  }
-
-  .rag-chunk-card p {
-    font-size: 10px;
   }
 
   .rag-timeline-box {

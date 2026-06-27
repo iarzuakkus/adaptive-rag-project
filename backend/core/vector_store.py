@@ -1,3 +1,33 @@
+""" Dosya: core/vector_store.py 
+Görev: 
+- Chunk dokümanlarını ve embedding vektörlerini bellekte yönetir. 
+- FAISS IndexFlatIP kullanarak semantic search yapar. 
+- Taranan kaynakları source_id bazında gruplayarak kaynak listesi üretir. 
+- Tekil kaynak detayı, chunk listesi ve chunk detayı döndürür. 
+- Kaynak silme işleminden sonra FAISS index'ini yeniden kurar. 
+- Chunk metadata içindeki LLM başlığı, kısa özet ve geniş özet alanlarını korur. Saklanan temel alanlar: 
+- source_id 
+- chunk_id 
+- title 
+- llm_title 
+- original_title 
+- url 
+- domain 
+- summary 
+- short_summary 
+- long_summary 
+- summary_status 
+- content 
+- text 
+- scanned_at 
+- created_at 
+- _embedding 
+Not: 
+- _embedding alanı iç kullanım içindir. 
+- Frontend veya route katmanına dönerken _embedding gizlenir. 
+- Bu store şu an bellekte çalışır; backend yeniden başlatıldığında kayıtlar sıfırlanır. 
+- İleride kalıcı veritabanı veya dosya tabanlı storage ile değiştirilebilir. 
+"""
 import faiss
 import numpy as np
 import uuid
@@ -37,19 +67,84 @@ class VectorStore:
         Embedding gibi iç kullanım alanlarını frontend'e veya route katmanına sızdırmamak için
         temizlenmiş chunk döndürür.
         """
+
         item = document.copy()
         item.pop("_embedding", None)
         return item
 
-    def _prepare_document(self, chunk: dict, embedding: list[float], fallback_source_ids: dict) -> dict:
+    def _normalize_title(self, document: dict) -> str:
+        return (
+            document.get("llm_title")
+            or document.get("title")
+            or document.get("original_title")
+            or document.get("page_title")
+            or "Başlıksız kaynak"
+        )
+
+    def _normalize_original_title(self, document: dict) -> str:
+        return (
+            document.get("original_title")
+            or document.get("page_title")
+            or document.get("title")
+            or ""
+        )
+
+    def _normalize_summary_fields(self, document: dict) -> dict:
+        short_summary = (
+            document.get("short_summary")
+            or document.get("summary")
+            or ""
+        )
+
+        long_summary = (
+            document.get("long_summary")
+            or document.get("detail_summary")
+            or document.get("summary")
+            or short_summary
+            or ""
+        )
+
+        summary = (
+            document.get("summary")
+            or short_summary
+            or ""
+        )
+
+        return {
+            "summary": summary,
+            "short_summary": short_summary,
+            "long_summary": long_summary,
+            "summary_status": document.get("summary_status") or "unknown",
+        }
+
+    def _prepare_document(
+        self,
+        chunk: dict,
+        embedding: list[float],
+        fallback_source_ids: dict,
+    ) -> dict:
+        """
+        Vector store'a eklenecek chunk dokümanını standart hale getirir.
+
+        Bu aşamada:
+        - source_id yoksa üretilir.
+        - chunk_id yoksa üretilir.
+        - LLM başlığı ve özet alanları korunur.
+        - metadata alanı frontend ve retriever için güncellenir.
+        - embedding dokümanın içine _embedding olarak eklenir.
+        """
+
         now = self._now_iso()
 
         item = chunk.copy()
 
         url = item.get("url") or item.get("page_url") or ""
-        title = item.get("title") or item.get("page_title") or "Başlıksız kaynak"
+        domain = item.get("domain") or self._extract_domain(url)
 
-        source_key = url or title or "unknown_source"
+        original_title = self._normalize_original_title(item)
+        llm_title = self._normalize_title(item)
+
+        source_key = url or original_title or llm_title or "unknown_source"
 
         if not item.get("source_id"):
             if source_key not in fallback_source_ids:
@@ -59,10 +154,17 @@ class VectorStore:
         if not item.get("chunk_id"):
             item["chunk_id"] = self._make_id("chk")
 
-        item["title"] = title
+        summary_fields = self._normalize_summary_fields(item)
+
+        item["title"] = llm_title
+        item["llm_title"] = llm_title
+        item["original_title"] = original_title
         item["url"] = url
-        item["domain"] = item.get("domain") or self._extract_domain(url)
-        item["summary"] = item.get("summary") or ""
+        item["domain"] = domain
+        item["summary"] = summary_fields["summary"]
+        item["short_summary"] = summary_fields["short_summary"]
+        item["long_summary"] = summary_fields["long_summary"]
+        item["summary_status"] = summary_fields["summary_status"]
         item["status"] = item.get("status") or "ready"
         item["chunk_index"] = item.get("chunk_index", 0)
         item["scanned_at"] = item.get("scanned_at") or item.get("created_at") or now
@@ -71,6 +173,27 @@ class VectorStore:
         if not item.get("text"):
             item["text"] = item.get("content") or ""
 
+        if not item.get("content"):
+            item["content"] = item.get("text") or ""
+
+        metadata = item.get("metadata") or {}
+
+        metadata["source_id"] = item["source_id"]
+        metadata["chunk_id"] = item["chunk_id"]
+        metadata["title"] = llm_title
+        metadata["llm_title"] = llm_title
+        metadata["original_title"] = original_title
+        metadata["url"] = url
+        metadata["domain"] = domain
+        metadata["summary"] = summary_fields["summary"]
+        metadata["short_summary"] = summary_fields["short_summary"]
+        metadata["long_summary"] = summary_fields["long_summary"]
+        metadata["summary_status"] = summary_fields["summary_status"]
+        metadata["chunk_index"] = item["chunk_index"]
+        metadata["source"] = metadata.get("source") or "web_page"
+        metadata["scanned_at"] = item["scanned_at"]
+
+        item["metadata"] = metadata
         item["_embedding"] = np.array(embedding, dtype="float32").tolist()
 
         return item
@@ -96,7 +219,9 @@ class VectorStore:
         vectors = np.array(embeddings).astype("float32")
 
         if vectors.ndim != 2:
-            raise ValueError(f"Embedding matrisi 2 boyutlu olmalı. Gelen shape: {vectors.shape}")
+            raise ValueError(
+                f"Embedding matrisi 2 boyutlu olmalı. Gelen shape: {vectors.shape}"
+            )
 
         if vectors.shape[1] != self.dimension:
             raise ValueError(
@@ -104,7 +229,6 @@ class VectorStore:
             )
 
         fallback_source_ids = {}
-
         prepared_documents = []
 
         for chunk, embedding in zip(chunks, embeddings):
@@ -160,7 +284,9 @@ class VectorStore:
                 continue
 
             if index >= len(self.documents):
-                print(f"Uyarı: index documents dışında kaldı. index={index}, documents={len(self.documents)}")
+                print(
+                    f"Uyarı: index documents dışında kaldı. index={index}, documents={len(self.documents)}"
+                )
                 continue
 
             item = self._public_document(self.documents[index])
@@ -178,6 +304,11 @@ class VectorStore:
         return [self._public_document(document) for document in self.documents]
 
     def get_sources(self) -> list[dict]:
+        """
+        Vector store içindeki chunk'ları source_id bazında gruplayarak
+        frontend kaynak kartları için kaynak listesi üretir.
+        """
+
         sources = {}
 
         for document in self.documents:
@@ -186,13 +317,22 @@ class VectorStore:
             if not source_id:
                 continue
 
+            title = self._normalize_title(document)
+            original_title = self._normalize_original_title(document)
+            summary_fields = self._normalize_summary_fields(document)
+
             if source_id not in sources:
                 sources[source_id] = {
                     "source_id": source_id,
-                    "title": document.get("title") or "Başlıksız kaynak",
+                    "title": title,
+                    "llm_title": title,
+                    "original_title": original_title,
                     "url": document.get("url") or "",
                     "domain": document.get("domain") or self._extract_domain(document.get("url") or ""),
-                    "summary": document.get("summary") or "",
+                    "summary": summary_fields["summary"],
+                    "short_summary": summary_fields["short_summary"],
+                    "long_summary": summary_fields["long_summary"],
+                    "summary_status": summary_fields["summary_status"],
                     "scanned_at": document.get("scanned_at") or "",
                     "chunk_count": 0,
                     "status": document.get("status") or "ready",
@@ -200,8 +340,27 @@ class VectorStore:
 
             sources[source_id]["chunk_count"] += 1
 
-            if document.get("summary") and not sources[source_id].get("summary"):
-                sources[source_id]["summary"] = document.get("summary")
+            if title and sources[source_id].get("title") == "Başlıksız kaynak":
+                sources[source_id]["title"] = title
+                sources[source_id]["llm_title"] = title
+
+            if original_title and not sources[source_id].get("original_title"):
+                sources[source_id]["original_title"] = original_title
+
+            if summary_fields["summary"] and not sources[source_id].get("summary"):
+                sources[source_id]["summary"] = summary_fields["summary"]
+
+            if summary_fields["short_summary"] and not sources[source_id].get("short_summary"):
+                sources[source_id]["short_summary"] = summary_fields["short_summary"]
+
+            if summary_fields["long_summary"] and not sources[source_id].get("long_summary"):
+                sources[source_id]["long_summary"] = summary_fields["long_summary"]
+
+            if (
+                summary_fields["summary_status"]
+                and sources[source_id].get("summary_status") == "unknown"
+            ):
+                sources[source_id]["summary_status"] = summary_fields["summary_status"]
 
         return sorted(
             sources.values(),
@@ -210,8 +369,20 @@ class VectorStore:
         )
 
     def get_source_detail(self, source_id: str) -> dict | None:
+        """
+        Tek bir kaynağın detayını döndürür.
+
+        Detay ekranı için:
+        - LLM başlığı
+        - kısa özet
+        - geniş özet
+        - chunk listesi
+        birlikte döner.
+        """
+
         source_documents = [
-            document for document in self.documents
+            document
+            for document in self.documents
             if document.get("source_id") == source_id
         ]
 
@@ -220,19 +391,33 @@ class VectorStore:
 
         first_document = source_documents[0]
 
+        title = self._normalize_title(first_document)
+        original_title = self._normalize_original_title(first_document)
+        summary_fields = self._normalize_summary_fields(first_document)
+
         chunks = []
 
         for document in source_documents:
             public_document = self._public_document(document)
+            chunk_summary_fields = self._normalize_summary_fields(public_document)
 
             chunks.append({
                 "chunk_id": public_document.get("chunk_id"),
                 "source_id": public_document.get("source_id"),
-                "title": public_document.get("title"),
+                "title": self._normalize_title(public_document),
+                "llm_title": public_document.get("llm_title") or self._normalize_title(public_document),
+                "original_title": self._normalize_original_title(public_document),
                 "url": public_document.get("url"),
-                "text": public_document.get("text") or "",
+                "domain": public_document.get("domain") or "",
+                "summary": chunk_summary_fields["summary"],
+                "short_summary": chunk_summary_fields["short_summary"],
+                "long_summary": chunk_summary_fields["long_summary"],
+                "summary_status": chunk_summary_fields["summary_status"],
+                "text": public_document.get("text") or public_document.get("content") or "",
+                "content": public_document.get("content") or public_document.get("text") or "",
                 "chunk_index": public_document.get("chunk_index", 0),
                 "created_at": public_document.get("created_at"),
+                "scanned_at": public_document.get("scanned_at"),
             })
 
         chunks = sorted(
@@ -242,10 +427,15 @@ class VectorStore:
 
         return {
             "source_id": source_id,
-            "title": first_document.get("title") or "Başlıksız kaynak",
+            "title": title,
+            "llm_title": title,
+            "original_title": original_title,
             "url": first_document.get("url") or "",
             "domain": first_document.get("domain") or self._extract_domain(first_document.get("url") or ""),
-            "summary": first_document.get("summary") or "",
+            "summary": summary_fields["summary"],
+            "short_summary": summary_fields["short_summary"],
+            "long_summary": summary_fields["long_summary"],
+            "summary_status": summary_fields["summary_status"],
             "scanned_at": first_document.get("scanned_at") or "",
             "chunk_count": len(chunks),
             "status": first_document.get("status") or "ready",
@@ -262,17 +452,38 @@ class VectorStore:
 
     def get_chunk_detail(self, source_id: str, chunk_id: str) -> dict | None:
         for document in self.documents:
-            if document.get("source_id") == source_id and document.get("chunk_id") == chunk_id:
+            if (
+                document.get("source_id") == source_id
+                and document.get("chunk_id") == chunk_id
+            ):
                 return self._public_document(document)
 
         return None
 
     def update_source_summary(self, source_id: str, summary: str) -> bool:
+        """
+        Bir kaynağa ait tüm chunk'ların özet bilgisini günceller.
+        Geriye dönük uyumluluk için summary ve short_summary birlikte güncellenir.
+        """
+
         updated = False
 
         for document in self.documents:
             if document.get("source_id") == source_id:
                 document["summary"] = summary
+                document["short_summary"] = summary
+
+                if not document.get("long_summary"):
+                    document["long_summary"] = summary
+
+                metadata = document.get("metadata") or {}
+                metadata["summary"] = summary
+                metadata["short_summary"] = summary
+
+                if not metadata.get("long_summary"):
+                    metadata["long_summary"] = summary
+
+                document["metadata"] = metadata
                 updated = True
 
         return updated
@@ -287,7 +498,8 @@ class VectorStore:
         before_count = len(self.documents)
 
         remaining_documents = [
-            document for document in self.documents
+            document
+            for document in self.documents
             if document.get("source_id") != source_id
         ]
 
