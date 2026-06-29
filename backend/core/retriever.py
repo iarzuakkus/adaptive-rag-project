@@ -4,13 +4,19 @@ Dosya: core/retriever.py
 Görev:
 - Kullanıcı sorusunu embedding'e çevirir.
 - Vector store içinde tüm taranmış kaynaklar arasında semantik arama yapar.
-- Chat RAG için standart kaynak listesi döndürür.
+- Chat RAG için standart kaynak/chunk listesi döndürür.
 
 Temel mantık:
 - page_url / page_title bilgisi frontend tarafından gönderilebilir.
-- Ancak retriever bu bilgileri filtre olarak kullanmaz.
+- Ancak bu sürümde retriever bu bilgileri katı filtre olarak kullanmaz.
 - Kullanıcı "bu sayfa" dese bile kaynakları URL'ye göre kilitlemez.
 - En alakalı chunk'lar tamamen embedding benzerliğine göre seçilir.
+
+Önemli:
+- LLM destekli kaynak özet alanları korunur:
+  llm_title, short_summary, long_summary, summary_status
+- Widget UI metinleri filtrelenir.
+- Ancak "MemorAI" veya "Adaptive RAG" gibi ürün/proje isimleri tek başına filtrelenmez.
 """
 
 from typing import Any, Optional
@@ -43,8 +49,12 @@ def _normalize_item(item: Any, index: int) -> dict:
     - source_id
     - chunk_id
     - title
+    - llm_title
     - url
     - domain
+    - short_summary
+    - long_summary
+    - summary_status
     - content
     - text
     - chunk_text
@@ -55,17 +65,22 @@ def _normalize_item(item: Any, index: int) -> dict:
 
     if isinstance(item, str):
         chunk_id = f"chunk-{index}"
+        text = item.strip()
 
         return {
             "id": chunk_id,
             "source_id": None,
             "chunk_id": chunk_id,
             "title": "Bilinmeyen kaynak",
+            "llm_title": "Bilinmeyen kaynak",
             "url": "",
             "domain": "",
-            "content": item,
-            "text": item,
-            "chunk_text": item,
+            "short_summary": "",
+            "long_summary": "",
+            "summary_status": "unknown",
+            "content": text,
+            "text": text,
+            "chunk_text": text,
             "chunk_index": index - 1,
             "score": None,
             "metadata": {},
@@ -81,15 +96,19 @@ def _normalize_item(item: Any, index: int) -> dict:
             return normalized
 
         chunk_id = f"chunk-{index}"
-        text = str(content)
+        text = str(content).strip()
 
         return {
             "id": chunk_id,
             "source_id": None,
             "chunk_id": chunk_id,
             "title": "Bilinmeyen kaynak",
+            "llm_title": "Bilinmeyen kaynak",
             "url": "",
             "domain": "",
+            "short_summary": "",
+            "long_summary": "",
+            "summary_status": "unknown",
             "content": text,
             "text": text,
             "chunk_text": text,
@@ -121,6 +140,13 @@ def _normalize_item(item: Any, index: int) -> dict:
             metadata.get("title"),
             metadata.get("page_title"),
             metadata.get("source_title"),
+            default="Başlıksız kaynak",
+        )
+
+        llm_title = _pick_first(
+            item.get("llm_title"),
+            metadata.get("llm_title"),
+            title,
             default="Başlıksız kaynak",
         )
 
@@ -178,6 +204,24 @@ def _normalize_item(item: Any, index: int) -> dict:
 
         safe_score = _as_float(raw_score)
 
+        short_summary = _pick_first(
+            item.get("short_summary"),
+            metadata.get("short_summary"),
+            default="",
+        )
+
+        long_summary = _pick_first(
+            item.get("long_summary"),
+            metadata.get("long_summary"),
+            default="",
+        )
+
+        summary_status = _pick_first(
+            item.get("summary_status"),
+            metadata.get("summary_status"),
+            default="unknown",
+        )
+
         text = str(content).strip() if content is not None else ""
 
         return {
@@ -185,8 +229,12 @@ def _normalize_item(item: Any, index: int) -> dict:
             "source_id": source_id,
             "chunk_id": chunk_id,
             "title": title,
+            "llm_title": llm_title,
             "url": url,
             "domain": domain,
+            "short_summary": short_summary,
+            "long_summary": long_summary,
+            "summary_status": summary_status,
             "content": text,
             "text": text,
             "chunk_text": text,
@@ -197,23 +245,34 @@ def _normalize_item(item: Any, index: int) -> dict:
                 "source_id": source_id,
                 "chunk_id": chunk_id,
                 "title": title,
+                "llm_title": llm_title,
                 "url": url,
                 "domain": domain,
+                "short_summary": short_summary,
+                "long_summary": long_summary,
+                "summary_status": summary_status,
                 "chunk_index": chunk_index,
             },
         }
 
     content = getattr(item, "content", "") or getattr(item, "text", "")
     text = str(content).strip() if content is not None else ""
+
     chunk_id = getattr(item, "chunk_id", f"chunk-{index}")
+    title = getattr(item, "title", "Bilinmeyen kaynak")
+    llm_title = getattr(item, "llm_title", title)
 
     return {
         "id": getattr(item, "id", chunk_id),
         "source_id": getattr(item, "source_id", None),
         "chunk_id": chunk_id,
-        "title": getattr(item, "title", "Bilinmeyen kaynak"),
+        "title": title,
+        "llm_title": llm_title,
         "url": getattr(item, "url", ""),
         "domain": getattr(item, "domain", ""),
+        "short_summary": getattr(item, "short_summary", ""),
+        "long_summary": getattr(item, "long_summary", ""),
+        "summary_status": getattr(item, "summary_status", "unknown"),
         "content": text,
         "text": text,
         "chunk_text": text,
@@ -226,6 +285,10 @@ def _normalize_item(item: Any, index: int) -> dict:
 def _is_widget_chunk(content: str) -> bool:
     """
     Extension widget'ına ait metinleri kesin olarak filtreler.
+
+    Dikkat:
+    Burada "memorai" veya "adaptive rag" gibi genel ürün isimleri filtrelenmez.
+    Çünkü kullanıcı kendi proje dokümanlarını da tarayabilir.
     """
 
     if not content:
@@ -235,16 +298,19 @@ def _is_widget_chunk(content: str) -> bool:
 
     blocked_phrases = [
         "sayfayı tara butonuyla",
+        "sayfayi tara butonuyla",
         "elle tarama aktif",
         "mevcut sayfayı kaynaklara ekleyebilirsin",
+        "mevcut sayfayi kaynaklara ekleyebilirsin",
         "bu sayfayı tara",
+        "bu sayfayi tara",
         "kaynaklara ekleyebilirsin",
-        "adaptive rag",
-        "memorai",
         "rag-widget",
         "notlara ekle",
         "kaynaklar sekmesi",
         "chat sekmesi",
+        "sayfayı kaynaklara ekle",
+        "sayfayi kaynaklara ekle",
     ]
 
     return any(phrase in lower_text for phrase in blocked_phrases)
@@ -266,7 +332,9 @@ def _is_soft_low_quality_chunk(content: str) -> bool:
 
     citation_markers = [
         "erişim tarihi",
+        "erisim tarihi",
         "kaynağından arşivlendi",
+        "kaynagindan arsivlendi",
         "isbn",
         "issn",
         "doi",
@@ -331,20 +399,38 @@ def _convert_raw_results(raw_results: Any) -> list:
                     else {}
                 )
 
+                safe_id = ids[index] if index < len(ids) else None
+
                 chunk_id = (
                     metadata.get("chunk_id")
-                    or ids[index]
-                    if index < len(ids)
-                    else f"chunk-{index + 1}"
+                    or metadata.get("id")
+                    or safe_id
+                    or f"chunk-{index + 1}"
+                )
+
+                title = (
+                    metadata.get("title")
+                    or metadata.get("page_title")
+                    or metadata.get("source_title")
+                    or "Başlıksız kaynak"
+                )
+
+                llm_title = (
+                    metadata.get("llm_title")
+                    or title
                 )
 
                 converted.append({
                     "id": chunk_id,
                     "source_id": metadata.get("source_id"),
                     "chunk_id": chunk_id,
-                    "title": metadata.get("title") or metadata.get("page_title") or "Başlıksız kaynak",
-                    "url": metadata.get("url") or metadata.get("page_url") or "",
+                    "title": title,
+                    "llm_title": llm_title,
+                    "url": metadata.get("url") or metadata.get("page_url") or metadata.get("source_url") or "",
                     "domain": metadata.get("domain") or "",
+                    "short_summary": metadata.get("short_summary") or "",
+                    "long_summary": metadata.get("long_summary") or "",
+                    "summary_status": metadata.get("summary_status") or "unknown",
                     "content": document,
                     "text": document,
                     "chunk_text": document,
@@ -370,6 +456,9 @@ def _apply_score_filter(results: list[dict]) -> list[dict]:
     """
     En iyi semantic skorun çok altında kalan sonuçları eler.
     Bu filtre URL filtresi değildir; sadece semantik olarak çok zayıf sonuçları azaltır.
+
+    Not:
+    Projede FAISS IndexFlatIP + normalize embedding kullanıldığı için yüksek skor daha iyidir.
     """
 
     scores = [
@@ -386,13 +475,13 @@ def _apply_score_filter(results: list[dict]) -> list[dict]:
     if best_score <= 0:
         return results
 
-    threshold = best_score * 0.45
+    relative_threshold = best_score * 0.45
 
     filtered = [
         item for item in results
         if item.get("score") is None
         or _as_float(item.get("score")) is None
-        or _as_float(item.get("score")) >= threshold
+        or _as_float(item.get("score")) >= relative_threshold
     ]
 
     return filtered if filtered else results
@@ -400,7 +489,7 @@ def _apply_score_filter(results: list[dict]) -> list[dict]:
 
 def _sort_results(results: list[dict]) -> list[dict]:
     """
-    Sonuçları sadece semantic score'a göre sıralar.
+    Sonuçları semantic score'a göre sıralar.
     Aktif sayfa için ekstra avantaj verilmez.
     """
 
@@ -582,7 +671,7 @@ def retrieve_relevant_chunks(
     print("QUERY EMBEDDING LENGTH:", len(query_embedding))
     print("QUERY EMBEDDING PREVIEW:", query_embedding[:5])
 
-    candidate_k = max(safe_top_k * 5, 25)
+    candidate_k = max(safe_top_k * 6, 30)
 
     raw_results = _call_vector_store_with_embedding(
         query_embedding=query_embedding,
@@ -602,9 +691,11 @@ def retrieve_relevant_chunks(
             "source_id": item.get("source_id"),
             "chunk_id": item.get("chunk_id"),
             "title": item.get("title"),
+            "llm_title": item.get("llm_title"),
             "url": item.get("url"),
             "chunk_index": item.get("chunk_index"),
             "score": item.get("score"),
+            "summary_status": item.get("summary_status"),
         })
 
     return results

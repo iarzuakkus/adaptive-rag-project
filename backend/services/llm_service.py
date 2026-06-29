@@ -6,7 +6,7 @@ Görev:
 - API key'i backend/.env dosyasından okur.
 - Chat, özetleme, not çıkarma ve RAG cevapları için tek merkezden LLM cevabı üretir.
 - Geçici Gemini hatalarında retry mekanizması uygular.
-- Ana model yoğunluktaysa fallback model dener.
+- Ana model yoğunluktaysa veya erişilemiyorsa fallback model dener.
 
 Bu dosya frontend tarafından doğrudan çağrılmaz.
 Frontend -> FastAPI route -> LLMService akışıyla çalışır.
@@ -37,11 +37,14 @@ class LLMService:
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY")
 
-        self.primary_model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+        # Not:
+        # Eğer .env içinde GEMINI_MODEL yoksa daha güvenli varsayılan model kullanıyoruz.
+        # İstersen .env içinde bunu ayrıca değiştirebilirsin.
+        self.primary_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
         fallback_models_raw = os.getenv(
             "GEMINI_FALLBACK_MODELS",
-            "gemini-2.5-flash,gemini-2.5-flash-lite"
+            "gemini-2.5-flash-lite,gemini-3.1-flash-lite-preview,gemini-3.1-flash-lite"
         )
 
         self.fallback_models = [
@@ -55,7 +58,9 @@ class LLMService:
         self.max_retries = int(os.getenv("GEMINI_MAX_RETRIES", "2"))
         self.retry_base_delay = float(os.getenv("GEMINI_RETRY_BASE_DELAY", "1.2"))
         self.retry_max_delay = float(os.getenv("GEMINI_RETRY_MAX_DELAY", "5"))
-        self.debug = os.getenv("LLM_DEBUG", "0") == "1"
+
+        # Hata ayıklarken .env içine LLM_DEBUG=1 yazabilirsin.
+        self.debug = os.getenv("LLM_DEBUG", "1") == "1"
 
         if not self.api_key:
             raise ValueError(
@@ -82,7 +87,7 @@ class LLMService:
 
     def _log(self, *args):
         """
-        Debug loglarını sadece LLM_DEBUG=1 iken basar.
+        Debug loglarını LLM_DEBUG=1 iken basar.
         """
 
         if self.debug:
@@ -115,6 +120,36 @@ class LLMService:
 
         return any(marker in message for marker in retryable_markers)
 
+    def _is_model_fallback_error(self, exc: Exception) -> bool:
+        """
+        Model erişimi/model adı/model desteği kaynaklı hatalarda
+        sıradaki fallback modele geçmek için kullanılır.
+
+        Örnek:
+        - model not found
+        - permission denied
+        - not supported
+        - unavailable for this API version
+        """
+
+        message = str(exc).lower()
+
+        fallback_markers = [
+            "404",
+            "not found",
+            "model not found",
+            "permission denied",
+            "forbidden",
+            "not supported",
+            "is not supported",
+            "not available",
+            "unavailable for",
+            "api version",
+            "does not exist",
+        ]
+
+        return any(marker in message for marker in fallback_markers)
+
     def _get_retry_delay(self, attempt: int) -> float:
         """
         Exponential backoff + küçük jitter uygular.
@@ -136,7 +171,7 @@ class LLMService:
         text = getattr(response, "text", None)
 
         if text:
-            return str(text)
+            return str(text).strip()
 
         return ""
 
@@ -174,7 +209,7 @@ class LLMService:
         """
         Gemini'den düz metin cevabı üretir.
 
-        Ana model geçici hata verirse fallback modellere geçer.
+        Ana model hata verirse fallback modellere geçer.
         """
 
         if not prompt or not prompt.strip():
@@ -185,12 +220,15 @@ class LLMService:
 
         last_error = None
 
+        self._log("\n[LLM] Kullanılacak model sırası:", self.models)
+        self._log("[LLM] Prompt length:", len(prompt))
+        self._log("[LLM] System instruction var mı:", bool(system_instruction))
+
         for model in self.models:
             for attempt in range(1, self.max_retries + 1):
                 try:
                     self._log(
-                        f"[LLM] model={model} attempt={attempt}/{self.max_retries} "
-                        f"prompt_length={len(prompt)}"
+                        f"[LLM] model={model} attempt={attempt}/{self.max_retries}"
                     )
 
                     text = self._generate_once(
@@ -201,25 +239,57 @@ class LLMService:
                         max_output_tokens=max_output_tokens,
                     )
 
-                    return text or ""
+                    if text and text.strip():
+                        self._log(f"[LLM] Başarılı model: {model}")
+                        return text.strip()
+
+                    last_error = RuntimeError(
+                        f"Gemini boş cevap döndürdü. Model: {model}"
+                    )
+
+                    self._log(f"[LLM] Boş cevap döndü. model={model}")
+
+                    break
 
                 except Exception as exc:
                     last_error = exc
 
-                    if not self._is_retryable_error(exc):
-                        raise RuntimeError(
-                            f"Gemini API isteği başarısız oldu. Model: {model}. Hata: {exc}"
-                        ) from exc
+                    self._log(
+                        f"[LLM] Hata aldı. model={model} attempt={attempt} error={exc}"
+                    )
 
-                    if attempt < self.max_retries:
-                        delay = self._get_retry_delay(attempt)
+                    if self._is_retryable_error(exc):
+                        if attempt < self.max_retries:
+                            delay = self._get_retry_delay(attempt)
+
+                            self._log(
+                                f"[LLM] Geçici hata. Bekleniyor: {delay:.1f}s"
+                            )
+
+                            time.sleep(delay)
+                            continue
+
                         self._log(
-                            f"[LLM] geçici hata. model={model} delay={delay:.1f}s error={exc}"
+                            f"[LLM] Retry bitti. Sıradaki modele geçilecek: {model}"
                         )
-                        time.sleep(delay)
+                        break
 
-            self._log(f"[LLM] model başarısız, fallback deneniyor: {model}")
+                    if self._is_model_fallback_error(exc):
+                        self._log(
+                            f"[LLM] Model erişim/model adı hatası. "
+                            f"Sıradaki modele geçiliyor: {model}"
+                        )
+                        break
+
+                    raise RuntimeError(
+                        f"Gemini API isteği başarısız oldu. "
+                        f"Model: {model}. Hata: {exc}"
+                    ) from exc
+
+            self._log(f"[LLM] Model başarısız, fallback deneniyor: {model}")
 
         raise RuntimeError(
-            f"Gemini API isteği başarısız oldu. Denenen modeller: {', '.join(self.models)}. Son hata: {last_error}"
+            f"Gemini API isteği başarısız oldu. "
+            f"Denenen modeller: {', '.join(self.models)}. "
+            f"Son hata: {last_error}"
         ) from last_error

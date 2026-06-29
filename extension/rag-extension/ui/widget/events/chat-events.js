@@ -8,7 +8,14 @@
  * - Aktif sayfa bilgisini otomatik olarak backend'e yollar:
  *   page_url, page_title, scope, top_k.
  * - Assistant cevabını session-store.js içine kaydeder.
+ * - Backend'den gelen son chunks bilgisini sayfa üzerinde highlight için geçici olarak saklar.
+ * - LLM tarafından kaynak gösterme niyeti algılanırsa son cevabın ilk/en alakalı chunk'ını sayfada gösterir.
  * - Sohbet temizleme işlemini yönetir.
+ *
+ * Not:
+ * - Session yapısı bozulmaz.
+ * - addMessageToSession yine role + string content ile çağrılır.
+ * - Chunk bilgileri şimdilik window.AdaptiveRagLastChatChunks içinde tutulur.
  */
 
 (function () {
@@ -74,7 +81,10 @@
         return null;
       }
 
-      return await window.AdaptiveRagSessionStore.addMessageToSession(role, content);
+      return await window.AdaptiveRagSessionStore.addMessageToSession(
+        role,
+        String(content || "")
+      );
     } catch (error) {
       console.warn("[CHAT EVENTS] Mesaj kaydedilemedi:", error);
       return null;
@@ -86,6 +96,8 @@
       if (window.AdaptiveRagSessionStore?.clearChatSession) {
         await window.AdaptiveRagSessionStore.clearChatSession();
       }
+
+      clearLastChatHighlightData();
 
       return true;
     } catch (error) {
@@ -158,11 +170,166 @@
       }
     });
 
-    if (lines.length === 0) {
+    if (!lines.length) {
       return "";
     }
 
     return `\n\nKullanılan kaynaklar:\n${lines.join("\n")}`;
+  }
+
+  function clearLastChatHighlightData() {
+    window.AdaptiveRagLastChatChunks = [];
+    window.AdaptiveRagLastChatResult = null;
+  }
+
+  function getResultChunks(result) {
+    return Array.isArray(result?.chunks) ? result.chunks : [];
+  }
+
+  function getSavedChunks() {
+    return Array.isArray(window.AdaptiveRagLastChatChunks)
+      ? window.AdaptiveRagLastChatChunks
+      : [];
+  }
+
+  function getPrimaryChunk(chunks) {
+    if (!Array.isArray(chunks) || !chunks.length) {
+      return null;
+    }
+
+    return chunks[0];
+  }
+
+  function saveLastChatHighlightData(result, question, options = {}) {
+    const preserveExistingChunks = options.preserveExistingChunks === true;
+    const resultChunks = getResultChunks(result);
+    const previousChunks = getSavedChunks();
+
+    const chunks =
+      preserveExistingChunks && resultChunks.length === 0
+        ? previousChunks
+        : resultChunks;
+
+    window.AdaptiveRagLastChatChunks = chunks;
+
+    window.AdaptiveRagLastChatResult = {
+      question,
+      answer: result?.answer || "",
+      chunks,
+      sources: Array.isArray(result?.sources) ? result.sources : [],
+      actions: Array.isArray(result?.actions) ? result.actions : [],
+      status: result?.status || "success",
+      answerType: result?.answer_type || result?.answerType || "short",
+      sourceCount:
+        typeof result?.source_count === "number"
+          ? result.source_count
+          : 0,
+      createdAt: new Date().toISOString()
+    };
+
+    console.log("[CHAT EVENTS] Son chat highlight verisi kaydedildi:", {
+      chunkCount: chunks.length,
+      preserveExistingChunks
+    });
+
+    window.dispatchEvent(
+      new CustomEvent("adaptive-rag-last-chat-chunks-updated", {
+        detail: {
+          chunks,
+          result: window.AdaptiveRagLastChatResult
+        }
+      })
+    );
+  }
+
+  function getActionType(action) {
+    return String(
+      action?.type ||
+      action?.action_type ||
+      action?.name ||
+      ""
+    ).trim().toLowerCase();
+  }
+
+  function getIntentValue(result) {
+    if (!result) {
+      return "";
+    }
+
+    if (typeof result.intent === "string") {
+      return result.intent.trim().toLowerCase();
+    }
+
+    if (typeof result.intent === "object" && result.intent !== null) {
+      return String(result.intent.intent || "").trim().toLowerCase();
+    }
+
+    return "";
+  }
+
+  function isSourceNavigationResult(result) {
+    const answerType = String(
+      result?.answer_type ||
+      result?.answerType ||
+      ""
+    ).trim().toLowerCase();
+
+    const status = String(result?.status || "").trim().toLowerCase();
+    const intent = getIntentValue(result);
+
+    const navigationTypes = new Set([
+      "source_navigation",
+      "source_request",
+      "show_source",
+      "show_answer_source",
+      "page_highlight",
+      "highlight_source"
+    ]);
+
+    if (
+      navigationTypes.has(answerType) ||
+      navigationTypes.has(status) ||
+      navigationTypes.has(intent)
+    ) {
+      return true;
+    }
+
+    const actions = Array.isArray(result?.actions) ? result.actions : [];
+
+    return actions.some((action) => {
+      const actionType = getActionType(action);
+
+      return [
+        "auto_highlight_page",
+        "show_answer_source",
+        "source_navigation",
+        "highlight_answer_source"
+      ].includes(actionType);
+    });
+  }
+
+  async function highlightPrimaryChunkOnPage(chunks) {
+    const primaryChunk = getPrimaryChunk(chunks);
+
+    if (!primaryChunk) {
+      return false;
+    }
+
+    const safeChunks = [primaryChunk];
+
+    if (window.AdaptiveRagHighlightEvents?.highlightChunksOnPage) {
+      return await window.AdaptiveRagHighlightEvents.highlightChunksOnPage(safeChunks);
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("adaptive-rag-highlight-page-chunks", {
+        detail: {
+          chunks: safeChunks
+        }
+      })
+    );
+
+    return true;
   }
 
   async function requestChatAnswer(question) {
@@ -219,6 +386,47 @@
     return `${answer}${sourcesText}`;
   }
 
+  function formatSourceNavigationAnswer(result) {
+    const answer = String(result?.answer || "").trim();
+
+    if (answer) {
+      return answer;
+    }
+
+    return "Tabii, son cevabın geçtiği bölümü sayfada gösteriyorum.";
+  }
+
+  async function handleSourceNavigationResult(result, question, refreshWidget) {
+    const resultChunks = getResultChunks(result);
+    const previousChunks = getSavedChunks();
+
+    const chunks = resultChunks.length > 0
+      ? resultChunks
+      : previousChunks;
+
+    saveLastChatHighlightData(result, question, {
+      preserveExistingChunks: true
+    });
+
+    await addMessage("assistant", formatSourceNavigationAnswer(result));
+    await refreshIfPossible(refreshWidget);
+
+    const highlighted = await highlightPrimaryChunkOnPage(chunks);
+
+    if (!highlighted) {
+      console.warn("[CHAT EVENTS] Kaynak yönlendirme için highlight başarısız.");
+    }
+  }
+
+  async function handleNormalChatResult(result, question, refreshWidget) {
+    const answer = formatChatResult(result);
+
+    saveLastChatHighlightData(result, question);
+
+    await addMessage("assistant", answer);
+    await refreshIfPossible(refreshWidget);
+  }
+
   async function handleSendMessage(refreshWidget) {
     const { input } = getChatElements();
     const question = input?.value?.trim();
@@ -236,10 +444,12 @@
       await refreshIfPossible(refreshWidget);
 
       const result = await requestChatAnswer(question);
-      const answer = formatChatResult(result);
 
-      await addMessage("assistant", answer);
-      await refreshIfPossible(refreshWidget);
+      if (isSourceNavigationResult(result)) {
+        await handleSourceNavigationResult(result, question, refreshWidget);
+      } else {
+        await handleNormalChatResult(result, question, refreshWidget);
+      }
     } catch (error) {
       console.error("[CHAT EVENTS] Backend chat hatası:", error);
 

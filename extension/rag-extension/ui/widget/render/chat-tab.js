@@ -8,6 +8,9 @@
  *
  * Not:
  * - Mesaj gönderme, backend isteği ve event yönetimi chat-events.js içindedir.
+ * - Session yapısı bozulmaz.
+ * - Kaynak yönlendirme doğal dil ile chat-events.js + backend intent akışı üzerinden yapılır.
+ * - Bu dosyada "Sayfada göster" veya "Kaynağı sayfada göster" butonu render edilmez.
  */
 
 (function () {
@@ -43,14 +46,19 @@
     }
   }
 
+  function normalizeRole(message) {
+    return message?.role === "user" ? "user" : "assistant";
+  }
+
   function renderMessage(message) {
-    const role = message.role === "user" ? "user" : "assistant";
-    const label = role === "user" ? "Sen" : "Adaptive RAG";
+    const role = normalizeRole(message);
+    const label = role === "user" ? "Sen" : "MemorAI";
+    const content = message?.content || "";
 
     return `
       <article class="rag-message ${role}">
         <div class="rag-message-label">${escapeHtml(label)}</div>
-        <div class="rag-message-content">${escapeHtml(message.content)}</div>
+        <div class="rag-message-content">${escapeHtml(content)}</div>
       </article>
     `;
   }
@@ -59,7 +67,11 @@
     const messages = await getMessages();
 
     const messagesHtml = messages.length
-      ? messages.map(renderMessage).join("")
+      ? messages
+          .map((message) => {
+            return renderMessage(message);
+          })
+          .join("")
       : `
         <div class="rag-empty-state">
           <strong>Henüz sohbet yok.</strong>
