@@ -7,7 +7,7 @@ Görev:
 - Kalite kontrol uygular.
 - Temiz içerikleri semantic chunk'lara böler.
 - Her tarama için source_id, her chunk için chunk_id üretir.
-- Kaynak için LLM destekli başlık, kısa özet ve geniş özet üretir.
+- Kaynak için LLM destekli başlık, kısa özet ve başlıklı detay özeti üretir.
 - Chunk metadata'sına kaynak bilgilerini ekler.
 - Embedding üretip chunk'ları vector store'a kaydeder.
 
@@ -17,7 +17,7 @@ Kaynakların sisteme giriş yaptığı ana backend route dosyasıdır.
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Any, List, Optional
 from datetime import datetime
 from urllib.parse import urlparse
 import uuid
@@ -95,6 +95,74 @@ def is_extension_noise(text: str) -> bool:
     return any(phrase in lower_text for phrase in noise_phrases)
 
 
+def normalize_summary_sections(value: Any) -> list[dict[str, str]]:
+    """
+    source_summary_service.py tarafından üretilen başlıklı özet alanını
+    ingest içinde güvenli hale getirir.
+
+    Beklenen format:
+    [
+      {"title": "...", "content": "..."}
+    ]
+    """
+
+    if not isinstance(value, list):
+        return []
+
+    sections: list[dict[str, str]] = []
+
+    for index, item in enumerate(value):
+        if isinstance(item, str):
+            content = " ".join(item.split())
+
+            if not content:
+                continue
+
+            sections.append({
+                "title": f"Başlık {index + 1}",
+                "content": content[:520],
+            })
+
+            continue
+
+        if not isinstance(item, dict):
+            continue
+
+        title = (
+            item.get("title")
+            or item.get("heading")
+            or item.get("header")
+            or item.get("name")
+            or item.get("label")
+            or f"Başlık {index + 1}"
+        )
+
+        content = (
+            item.get("content")
+            or item.get("text")
+            or item.get("summary")
+            or item.get("description")
+            or item.get("body")
+            or ""
+        )
+
+        title = " ".join(str(title or "").split())[:80]
+        content = " ".join(str(content or "").split())[:520]
+
+        if not content:
+            continue
+
+        sections.append({
+            "title": title or f"Başlık {index + 1}",
+            "content": content,
+        })
+
+        if len(sections) >= 4:
+            break
+
+    return sections
+
+
 def enrich_chunks(
     chunks: list[dict],
     title: str,
@@ -136,6 +204,8 @@ def enrich_chunks(
             "summary": "",
             "short_summary": "",
             "long_summary": "",
+            "summary_sections": [],
+            "detail_sections": [],
             "llm_title": "",
             "summary_status": "not_generated",
             "status": "ready",
@@ -156,6 +226,8 @@ def enrich_chunks(
                 "summary": "",
                 "short_summary": "",
                 "long_summary": "",
+                "summary_sections": [],
+                "detail_sections": [],
                 "llm_title": "",
                 "summary_status": "not_generated",
                 "chunk_index": index,
@@ -183,6 +255,12 @@ def apply_source_metadata_to_chunks(
     summary = source_metadata.get("summary") or short_summary
     summary_status = source_metadata.get("summary_status", "unknown")
 
+    summary_sections = normalize_summary_sections(
+        source_metadata.get("summary_sections")
+        or source_metadata.get("detail_sections")
+        or []
+    )
+
     for chunk in chunks:
         chunk["title"] = llm_title
         chunk["llm_title"] = llm_title
@@ -190,6 +268,8 @@ def apply_source_metadata_to_chunks(
         chunk["summary"] = summary
         chunk["short_summary"] = short_summary
         chunk["long_summary"] = long_summary
+        chunk["summary_sections"] = summary_sections
+        chunk["detail_sections"] = summary_sections
         chunk["summary_status"] = summary_status
 
         chunk_metadata = chunk.setdefault("metadata", {})
@@ -200,6 +280,8 @@ def apply_source_metadata_to_chunks(
         chunk_metadata["summary"] = summary
         chunk_metadata["short_summary"] = short_summary
         chunk_metadata["long_summary"] = long_summary
+        chunk_metadata["summary_sections"] = summary_sections
+        chunk_metadata["detail_sections"] = summary_sections
         chunk_metadata["summary_status"] = summary_status
 
     return chunks
@@ -213,11 +295,20 @@ def build_empty_source_metadata(title: str, domain: str) -> dict:
     safe_title = title or domain or "Başlıksız kaynak"
     safe_summary = "Bu kaynak için özet oluşturulamadı çünkü temiz içerik bulunamadı."
 
+    summary_sections = [
+        {
+            "title": "İçerik bulunamadı",
+            "content": safe_summary,
+        }
+    ]
+
     return {
         "llm_title": safe_title,
         "short_summary": safe_summary,
         "long_summary": safe_summary,
         "summary": safe_summary,
+        "summary_sections": summary_sections,
+        "detail_sections": summary_sections,
         "summary_status": "fallback_empty_chunks",
     }
 
@@ -274,6 +365,14 @@ def ingest(data: IngestRequest):
     else:
         source_metadata = build_empty_source_metadata(data.title, domain)
 
+    source_metadata["summary_sections"] = normalize_summary_sections(
+        source_metadata.get("summary_sections")
+        or source_metadata.get("detail_sections")
+        or []
+    )
+
+    source_metadata["detail_sections"] = source_metadata["summary_sections"]
+
     chunks = apply_source_metadata_to_chunks(
         chunks=chunks,
         source_metadata=source_metadata,
@@ -284,10 +383,12 @@ def ingest(data: IngestRequest):
     short_summary = source_metadata.get("short_summary") or ""
     long_summary = source_metadata.get("long_summary") or short_summary
     summary = source_metadata.get("summary") or short_summary
+    summary_sections = source_metadata.get("summary_sections") or []
     summary_status = source_metadata.get("summary_status", "unknown")
 
     print("[INGEST] Kaynak başlığı:", llm_title)
     print("[INGEST] Özet durumu:", summary_status)
+    print("[INGEST] Başlıklı özet sayısı:", len(summary_sections))
 
     chunk_texts = [chunk["content"] for chunk in chunks]
 
@@ -315,6 +416,8 @@ def ingest(data: IngestRequest):
             "summary": summary,
             "short_summary": short_summary,
             "long_summary": long_summary,
+            "summary_sections": summary_sections,
+            "detail_sections": summary_sections,
             "summary_status": summary_status,
             "scanned_at": scanned_at,
             "chunk_count": len(chunks),

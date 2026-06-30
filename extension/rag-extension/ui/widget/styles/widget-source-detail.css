@@ -12,6 +12,13 @@
   - Detay ekranı sadece inline görünüm olarak çalışır.
 */
 
+.rag-source-detail-view,
+.rag-source-detail-view *,
+.rag-source-detail-view *::before,
+.rag-source-detail-view *::after {
+  box-sizing: border-box;
+}
+
 .rag-source-detail-view {
   width: 100%;
   min-width: 0;
@@ -24,25 +31,35 @@
 .rag-source-back-btn {
   align-self: flex-start;
   border: 1px solid rgba(238, 167, 255, 0.14);
-  background: rgba(255, 255, 255, 0.035);
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 80, 0.045), transparent 44%),
+    rgba(255, 255, 255, 0.035);
   color: var(--rag-color-text-soft);
   border-radius: 999px;
   padding: 8px 11px;
   font-family: var(--rag-font-family);
   font-size: 10.5px;
   line-height: 1;
-  font-weight: 500;
+  font-weight: 550;
   cursor: pointer;
   transition:
     transform var(--rag-transition-normal),
     border-color var(--rag-transition-normal),
-    background var(--rag-transition-normal);
+    background var(--rag-transition-normal),
+    color var(--rag-transition-normal),
+    box-shadow var(--rag-transition-normal);
 }
 
 .rag-source-back-btn:hover {
   transform: translateY(-1px);
+  color: var(--rag-color-text);
   border-color: rgba(238, 167, 255, 0.28);
-  background: rgba(255, 255, 255, 0.055);
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 80, 0.065), transparent 44%),
+    rgba(255, 255, 255, 0.055);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.12),
+    0 0 12px rgba(238, 167, 255, 0.06);
 }
 
 /* Detay kartı */
@@ -50,13 +67,14 @@
   width: 100%;
   min-width: 0;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: 18px;
   border: 1px solid rgba(238, 167, 255, 0.12);
   background:
-    radial-gradient(circle at top left, rgba(255, 0, 31, 0.052), transparent 34%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.022));
+    radial-gradient(circle at top left, rgba(255, 0, 80, 0.07), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.045), transparent 38%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.042), rgba(255, 255, 255, 0.02));
   box-shadow:
-    0 8px 22px rgba(0, 0, 0, 0.15),
+    0 10px 24px rgba(0, 0, 0, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
@@ -65,7 +83,7 @@
   padding: 13px 13px 11px;
   border-bottom: 1px solid rgba(238, 167, 255, 0.08);
   background:
-    linear-gradient(135deg, rgba(255, 0, 31, 0.052), rgba(238, 167, 255, 0.035)),
+    linear-gradient(135deg, rgba(255, 0, 80, 0.06), rgba(238, 167, 255, 0.035)),
     transparent;
 }
 
@@ -75,19 +93,19 @@
   font-size: 9.5px;
   line-height: 1.2;
   color: var(--rag-color-text-muted);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.055em;
   text-transform: uppercase;
 }
 
 .rag-source-detail-top h3 {
   margin: 0;
-  max-height: 54px;
+  max-height: 56px;
   overflow: hidden;
   font-size: 13px;
   line-height: 1.38;
   color: var(--rag-color-text);
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: 0.005em;
 }
 
@@ -102,8 +120,9 @@
 .rag-source-detail-info div {
   min-width: 0;
   padding: 8px 9px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: 13px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.034), rgba(255, 255, 255, 0.018));
   border: 1px solid rgba(238, 167, 255, 0.08);
 }
 
@@ -113,7 +132,7 @@
   font-size: 9.5px;
   line-height: 1.3;
   color: var(--rag-color-text-muted);
-  font-weight: 400;
+  font-weight: 450;
 }
 
 .rag-source-detail-info strong {
@@ -122,45 +141,132 @@
   font-size: 10.5px;
   line-height: 1.35;
   color: var(--rag-color-text-soft);
-  font-weight: 500;
+  font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Özet alanları */
-.rag-source-detail-section {
+/* Başlıklı özet alanı */
+.rag-source-detail-summary-area {
+  width: 100%;
+  min-width: 0;
   padding: 12px 13px 0;
 }
 
-.rag-source-detail-section h4 {
-  margin: 0 0 6px;
-  font-size: 11.2px;
-  line-height: 1.3;
-  color: var(--rag-color-text);
-  font-weight: 600;
+.rag-source-detail-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 9px;
 }
 
-.rag-source-detail-section p {
+.rag-source-detail-section-head span {
+  font-size: 9.5px;
+  line-height: 1.2;
+  color: var(--rag-color-text-muted);
+  font-weight: 600;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.rag-source-detail-section-head strong {
+  font-size: 11.6px;
+  line-height: 1.3;
+  color: var(--rag-color-text);
+  font-weight: 650;
+}
+
+.rag-source-detail-summary-grid {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.rag-source-detail-summary-card {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px;
+  border-radius: 15px;
+  border: 1px solid rgba(238, 167, 255, 0.095);
+  background:
+    radial-gradient(circle at top right, rgba(238, 167, 255, 0.052), transparent 38%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.036), rgba(255, 255, 255, 0.018));
+  box-shadow:
+    0 7px 16px rgba(0, 0, 0, 0.105),
+    inset 0 1px 0 rgba(255, 255, 255, 0.026);
+}
+
+.rag-source-detail-summary-index {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(238, 167, 255, 0.13);
+  background:
+    radial-gradient(circle, rgba(255, 0, 80, 0.12), transparent 68%),
+    rgba(255, 255, 255, 0.035);
+  color: #eea7ff;
+  font-size: 9.5px;
+  line-height: 1;
+  font-weight: 700;
+  box-shadow:
+    0 0 10px rgba(255, 0, 80, 0.09),
+    0 0 12px rgba(238, 167, 255, 0.07);
+}
+
+.rag-source-detail-summary-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.rag-source-detail-summary-content h4 {
+  margin: 0 0 5px;
+  max-height: 34px;
+  overflow: hidden;
+  font-size: 11.4px;
+  line-height: 1.38;
+  color: var(--rag-color-text);
+  font-weight: 650;
+}
+
+.rag-source-detail-summary-content p {
   margin: 0;
-  font-size: 11.1px;
-  line-height: 1.56;
+  max-height: 86px;
+  overflow: auto;
+  padding-right: 3px;
+  font-size: 10.8px;
+  line-height: 1.5;
   color: var(--rag-color-text-muted);
   font-weight: 400;
 }
 
-/* Geniş özet çok uzarsa kartı şişirmesin */
-.rag-source-detail-section:nth-of-type(2) p {
-  max-height: 180px;
-  overflow: auto;
-  padding-right: 3px;
+/* Backend henüz başlıklı özet dönmezse kullanılan fallback alan */
+.rag-source-detail-section {
+  padding: 12px 13px 0;
+}
+
+.rag-source-detail-section p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--rag-color-text-muted);
+  font-weight: 400;
 }
 
 /* URL alanı */
 .rag-source-detail-url {
   margin: 12px 13px 0;
   padding: 8px 9px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: 13px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.032), rgba(255, 255, 255, 0.018));
   border: 1px solid rgba(238, 167, 255, 0.08);
   font-size: 10px;
   line-height: 1.4;
@@ -179,21 +285,39 @@
 
 .rag-source-detail-actions .rag-secondary-btn,
 .rag-source-detail-actions .rag-danger-btn {
-  min-height: 30px;
+  min-height: 31px;
+  padding: 7px 11px;
   font-size: 10.5px;
-  font-weight: 550;
+  line-height: 1;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rag-source-detail-actions .rag-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.rag-source-detail-actions .rag-icon-button {
+  width: 13px;
+  height: 13px;
 }
 
 /* Detay içi scrollbar */
+.rag-source-detail-summary-content p::-webkit-scrollbar,
 .rag-source-detail-section p::-webkit-scrollbar {
   width: 5px;
 }
 
+.rag-source-detail-summary-content p::-webkit-scrollbar-thumb,
 .rag-source-detail-section p::-webkit-scrollbar-thumb {
   background: rgba(238, 167, 255, 0.2);
   border-radius: 999px;
 }
 
+.rag-source-detail-summary-content p::-webkit-scrollbar-track,
 .rag-source-detail-section p::-webkit-scrollbar-track {
   background: transparent;
 }
@@ -214,9 +338,31 @@
   }
 
   .rag-source-detail-info,
+  .rag-source-detail-summary-area,
   .rag-source-detail-section {
     padding-left: 12px;
     padding-right: 12px;
+  }
+
+  .rag-source-detail-summary-card {
+    padding: 9px;
+    gap: 8px;
+  }
+
+  .rag-source-detail-summary-index {
+    width: 25px;
+    height: 25px;
+    min-width: 25px;
+    border-radius: 10px;
+  }
+
+  .rag-source-detail-summary-content h4 {
+    font-size: 11.2px;
+  }
+
+  .rag-source-detail-summary-content p {
+    font-size: 10.6px;
+    max-height: 82px;
   }
 
   .rag-source-detail-url {

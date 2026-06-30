@@ -78,6 +78,50 @@
     }
   }
 
+  function getIconUrl(iconName) {
+    try {
+      if (
+        typeof chrome !== "undefined" &&
+        chrome.runtime &&
+        typeof chrome.runtime.getURL === "function"
+      ) {
+        return chrome.runtime.getURL(`icons/${iconName}.svg`);
+      }
+    } catch {
+      return "";
+    }
+
+    return "";
+  }
+
+  function renderIcon(iconName, className = "") {
+    const iconUrl = getIconUrl(iconName);
+
+    if (!iconUrl) {
+      return "";
+    }
+
+    return `
+      <span
+        class="rag-icon-mask ${escapeHtml(className)}"
+        style="--rag-icon-url: url('${escapeHtml(iconUrl)}');"
+        aria-hidden="true"
+      ></span>
+    `;
+  }
+
+  function parseJsonSafely(value) {
+    if (!value || typeof value !== "string") {
+      return null;
+    }
+
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+
   function getSourceTitle(source) {
     return (
       source?.llm_title ||
@@ -88,12 +132,25 @@
     );
   }
 
-  function getShortSummary(source) {
+  function getSourceUrl(source) {
     return (
-      source?.short_summary ||
-      source?.card_summary ||
-      source?.summary ||
-      "Bu kaynak için kısa özet henüz oluşturulmadı."
+      source?.url ||
+      source?.source_url ||
+      source?.page_url ||
+      source?.pageUrl ||
+      ""
+    );
+  }
+
+  function getSourceDomain(source) {
+    const url = getSourceUrl(source);
+
+    return (
+      source?.domain ||
+      source?.site ||
+      source?.hostname ||
+      getShortUrl(url) ||
+      "Kaynak adresi yok"
     );
   }
 
@@ -102,9 +159,200 @@
       source?.long_summary ||
       source?.detail_summary ||
       source?.extended_summary ||
+      source?.llm_summary ||
       source?.summary ||
-      "Bu kaynak için geniş özet henüz oluşturulmadı."
+      ""
     );
+  }
+
+  function getSourceId(source) {
+    return source?.source_id || source?.sourceId || source?.id || "";
+  }
+
+  function normalizeSummarySection(section, index) {
+    if (!section) {
+      return null;
+    }
+
+    if (typeof section === "string") {
+      const value = section.trim();
+
+      if (!value) {
+        return null;
+      }
+
+      return {
+        title: `Başlık ${index + 1}`,
+        content: value
+      };
+    }
+
+    if (typeof section !== "object") {
+      return null;
+    }
+
+    const title =
+      section.title ||
+      section.heading ||
+      section.header ||
+      section.name ||
+      section.label ||
+      `Başlık ${index + 1}`;
+
+    const content =
+      section.content ||
+      section.text ||
+      section.summary ||
+      section.description ||
+      section.body ||
+      "";
+
+    if (!String(content || "").trim()) {
+      return null;
+    }
+
+    return {
+      title: String(title || `Başlık ${index + 1}`).trim(),
+      content: String(content || "").trim()
+    };
+  }
+
+  function normalizeSectionsFromObject(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return [];
+    }
+
+    if (Array.isArray(value.sections)) {
+      return value.sections;
+    }
+
+    if (Array.isArray(value.summary_sections)) {
+      return value.summary_sections;
+    }
+
+    if (Array.isArray(value.headings)) {
+      return value.headings;
+    }
+
+    return Object.entries(value).map(([title, content]) => {
+      return {
+        title,
+        content
+      };
+    });
+  }
+
+  function getRawSummarySections(source) {
+    const candidates = [
+      source?.summary_sections,
+      source?.detail_sections,
+      source?.structured_summary,
+      source?.structuredSummary,
+      source?.llm_summary_sections,
+      source?.llmSummarySections,
+      source?.heading_summary,
+      source?.headingSummary,
+      source?.summary_by_headings,
+      source?.summaryByHeadings
+    ];
+
+    for (const candidate of candidates) {
+      if (!candidate) {
+        continue;
+      }
+
+      if (Array.isArray(candidate)) {
+        return candidate;
+      }
+
+      const parsedCandidate =
+        typeof candidate === "string" ? parseJsonSafely(candidate) : candidate;
+
+      if (Array.isArray(parsedCandidate)) {
+        return parsedCandidate;
+      }
+
+      const objectSections = normalizeSectionsFromObject(parsedCandidate);
+
+      if (objectSections.length > 0) {
+        return objectSections;
+      }
+    }
+
+    return [];
+  }
+
+  function getDetailSummarySections(source) {
+    const rawSections = getRawSummarySections(source);
+
+    const normalizedSections = rawSections
+      .map((section, index) => normalizeSummarySection(section, index))
+      .filter(Boolean)
+      .slice(0, 4);
+
+    if (normalizedSections.length > 0) {
+      return normalizedSections;
+    }
+
+    const longSummary = getLongSummary(source);
+
+    if (!String(longSummary || "").trim()) {
+      return [];
+    }
+
+    return [
+      {
+        title: "Genel özet",
+        content: longSummary
+      }
+    ];
+  }
+
+  function renderSummarySections(source) {
+    const sections = getDetailSummarySections(source);
+
+    if (!sections.length) {
+      return `
+        <section class="rag-source-detail-section">
+          <div class="rag-source-detail-section-head">
+            <span>Başlıklı özet</span>
+            <strong>Henüz oluşturulmadı</strong>
+          </div>
+
+          <p>
+            Bu kaynak için başlıklı detay özeti henüz oluşturulmadı.
+          </p>
+        </section>
+      `;
+    }
+
+    return `
+      <section class="rag-source-detail-summary-area">
+        <div class="rag-source-detail-section-head">
+          <span>Başlıklı özet</span>
+          <strong>Kaynağın ana noktaları</strong>
+        </div>
+
+        <div class="rag-source-detail-summary-grid">
+          ${sections.map(renderSummarySectionCard).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderSummarySectionCard(section, index) {
+    return `
+      <article class="rag-source-detail-summary-card">
+        <div class="rag-source-detail-summary-index">
+          ${String(index + 1).padStart(2, "0")}
+        </div>
+
+        <div class="rag-source-detail-summary-content">
+          <h4>${escapeHtml(section.title)}</h4>
+          <p>${escapeHtml(trimText(section.content, 520))}</p>
+        </div>
+      </article>
+    `;
   }
 
   function renderSourceDetail(source) {
@@ -113,12 +361,10 @@
     }
 
     const title = getSourceTitle(source);
-    const url = source.url || "";
-    const domain = source.domain || getShortUrl(url);
-    const scannedAt = formatDate(source.scanned_at || source.scannedAt);
-    const shortSummary = getShortSummary(source);
-    const longSummary = getLongSummary(source);
-    const sourceId = source.source_id || source.sourceId || "";
+    const url = getSourceUrl(source);
+    const domain = getSourceDomain(source);
+    const scannedAt = formatDate(source.scanned_at || source.scannedAt || source.created_at);
+    const sourceId = getSourceId(source);
 
     return `
       <div
@@ -153,15 +399,7 @@
             </div>
           </div>
 
-          <section class="rag-source-detail-section">
-            <h4>Kısa özet</h4>
-            <p>${escapeHtml(trimText(shortSummary, 360))}</p>
-          </section>
-
-          <section class="rag-source-detail-section">
-            <h4>Geniş özet</h4>
-            <p>${escapeHtml(trimText(longSummary, 1200))}</p>
-          </section>
+          ${renderSummarySections(source)}
 
           ${
             url
@@ -178,11 +416,12 @@
               url
                 ? `
                   <button
-                    class="rag-secondary-btn rag-open-source-btn"
+                    class="rag-secondary-btn rag-open-source-btn rag-icon-btn"
                     type="button"
                     data-url="${escapeHtml(url)}"
                   >
-                    Siteye git
+                    ${renderIcon("external-link", "rag-icon-button")}
+                    <span>Siteye git</span>
                   </button>
                 `
                 : ""
@@ -192,11 +431,12 @@
               sourceId
                 ? `
                   <button
-                    class="rag-danger-btn rag-delete-source-btn"
+                    class="rag-danger-btn rag-delete-source-btn rag-icon-btn"
                     type="button"
                     data-source-id="${escapeHtml(sourceId)}"
                   >
-                    Sil
+                    ${renderIcon("rubbish", "rag-icon-button")}
+                    <span>Sil</span>
                   </button>
                 `
                 : ""

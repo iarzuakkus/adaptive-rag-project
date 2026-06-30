@@ -1,38 +1,48 @@
-""" Dosya: core/vector_store.py 
-Görev: 
-- Chunk dokümanlarını ve embedding vektörlerini bellekte yönetir. 
-- FAISS IndexFlatIP kullanarak semantic search yapar. 
-- Taranan kaynakları source_id bazında gruplayarak kaynak listesi üretir. 
-- Tekil kaynak detayı, chunk listesi ve chunk detayı döndürür. 
-- Kaynak silme işleminden sonra FAISS index'ini yeniden kurar. 
-- Chunk metadata içindeki LLM başlığı, kısa özet ve geniş özet alanlarını korur. Saklanan temel alanlar: 
-- source_id 
-- chunk_id 
-- title 
-- llm_title 
-- original_title 
-- url 
-- domain 
-- summary 
-- short_summary 
-- long_summary 
-- summary_status 
-- content 
-- text 
-- scanned_at 
-- created_at 
-- _embedding 
-Not: 
-- _embedding alanı iç kullanım içindir. 
-- Frontend veya route katmanına dönerken _embedding gizlenir. 
-- Bu store şu an bellekte çalışır; backend yeniden başlatıldığında kayıtlar sıfırlanır. 
-- İleride kalıcı veritabanı veya dosya tabanlı storage ile değiştirilebilir. 
 """
-import faiss
-import numpy as np
-import uuid
+Dosya: core/vector_store.py
+
+Görev:
+- Chunk dokümanlarını ve embedding vektörlerini bellekte yönetir.
+- FAISS IndexFlatIP kullanarak semantic search yapar.
+- Taranan kaynakları source_id bazında gruplayarak kaynak listesi üretir.
+- Tekil kaynak detayı, chunk listesi ve chunk detayı döndürür.
+- Kaynak silme işleminden sonra FAISS index'ini yeniden kurar.
+- Chunk metadata içindeki LLM başlığı, kısa özet, geniş özet ve başlıklı özet alanlarını korur.
+
+Saklanan temel alanlar:
+- source_id
+- chunk_id
+- title
+- llm_title
+- original_title
+- url
+- domain
+- summary
+- short_summary
+- long_summary
+- summary_sections
+- detail_sections
+- summary_status
+- content
+- text
+- scanned_at
+- created_at
+- _embedding
+
+Not:
+- _embedding alanı iç kullanım içindir.
+- Frontend veya route katmanına dönerken _embedding gizlenir.
+- Bu store şu an bellekte çalışır; backend yeniden başlatıldığında kayıtlar sıfırlanır.
+- İleride kalıcı veritabanı veya dosya tabanlı storage ile değiştirilebilir.
+"""
+
+from typing import Any
 from datetime import datetime
 from urllib.parse import urlparse
+import uuid
+
+import faiss
+import numpy as np
 
 
 class VectorStore:
@@ -89,6 +99,104 @@ class VectorStore:
             or ""
         )
 
+    def _normalize_summary_section(self, section: Any, index: int) -> dict[str, str] | None:
+        if not section:
+            return None
+
+        if isinstance(section, str):
+            content = " ".join(section.split())
+
+            if not content:
+                return None
+
+            return {
+                "title": f"Başlık {index + 1}",
+                "content": content,
+            }
+
+        if not isinstance(section, dict):
+            return None
+
+        title = (
+            section.get("title")
+            or section.get("heading")
+            or section.get("header")
+            or section.get("name")
+            or section.get("label")
+            or f"Başlık {index + 1}"
+        )
+
+        content = (
+            section.get("content")
+            or section.get("text")
+            or section.get("summary")
+            or section.get("description")
+            or section.get("body")
+            or ""
+        )
+
+        title = " ".join(str(title or "").split())[:100]
+        content = " ".join(str(content or "").split())
+
+        if not content:
+            return None
+
+        return {
+            "title": title or f"Başlık {index + 1}",
+            "content": content,
+        }
+
+    def _normalize_summary_sections(self, document: dict) -> list[dict[str, str]]:
+        """
+        Kaynak detay ekranında kullanılacak başlıklı özet alanlarını korur ve normalize eder.
+        """
+
+        metadata = document.get("metadata") or {}
+
+        raw_sections = (
+            document.get("summary_sections")
+            or document.get("detail_sections")
+            or document.get("structured_summary")
+            or document.get("llm_summary_sections")
+            or metadata.get("summary_sections")
+            or metadata.get("detail_sections")
+            or metadata.get("structured_summary")
+            or metadata.get("llm_summary_sections")
+            or []
+        )
+
+        if isinstance(raw_sections, dict):
+            if isinstance(raw_sections.get("summary_sections"), list):
+                raw_sections = raw_sections.get("summary_sections")
+            elif isinstance(raw_sections.get("sections"), list):
+                raw_sections = raw_sections.get("sections")
+            elif isinstance(raw_sections.get("items"), list):
+                raw_sections = raw_sections.get("items")
+            else:
+                raw_sections = [
+                    {
+                        "title": title,
+                        "content": content,
+                    }
+                    for title, content in raw_sections.items()
+                ]
+
+        if not isinstance(raw_sections, list):
+            return []
+
+        normalized_sections: list[dict[str, str]] = []
+
+        for index, section in enumerate(raw_sections):
+            normalized = self._normalize_summary_section(section, index)
+
+            if normalized:
+                normalized_sections.append(normalized)
+
+            if len(normalized_sections) >= 4:
+                break
+
+        return normalized_sections
+
     def _normalize_summary_fields(self, document: dict) -> dict:
         short_summary = (
             document.get("short_summary")
@@ -110,10 +218,14 @@ class VectorStore:
             or ""
         )
 
+        summary_sections = self._normalize_summary_sections(document)
+
         return {
             "summary": summary,
             "short_summary": short_summary,
             "long_summary": long_summary,
+            "summary_sections": summary_sections,
+            "detail_sections": summary_sections,
             "summary_status": document.get("summary_status") or "unknown",
         }
 
@@ -130,6 +242,7 @@ class VectorStore:
         - source_id yoksa üretilir.
         - chunk_id yoksa üretilir.
         - LLM başlığı ve özet alanları korunur.
+        - Başlıklı özet alanları korunur.
         - metadata alanı frontend ve retriever için güncellenir.
         - embedding dokümanın içine _embedding olarak eklenir.
         """
@@ -164,6 +277,8 @@ class VectorStore:
         item["summary"] = summary_fields["summary"]
         item["short_summary"] = summary_fields["short_summary"]
         item["long_summary"] = summary_fields["long_summary"]
+        item["summary_sections"] = summary_fields["summary_sections"]
+        item["detail_sections"] = summary_fields["detail_sections"]
         item["summary_status"] = summary_fields["summary_status"]
         item["status"] = item.get("status") or "ready"
         item["chunk_index"] = item.get("chunk_index", 0)
@@ -188,6 +303,8 @@ class VectorStore:
         metadata["summary"] = summary_fields["summary"]
         metadata["short_summary"] = summary_fields["short_summary"]
         metadata["long_summary"] = summary_fields["long_summary"]
+        metadata["summary_sections"] = summary_fields["summary_sections"]
+        metadata["detail_sections"] = summary_fields["detail_sections"]
         metadata["summary_status"] = summary_fields["summary_status"]
         metadata["chunk_index"] = item["chunk_index"]
         metadata["source"] = metadata.get("source") or "web_page"
@@ -332,6 +449,8 @@ class VectorStore:
                     "summary": summary_fields["summary"],
                     "short_summary": summary_fields["short_summary"],
                     "long_summary": summary_fields["long_summary"],
+                    "summary_sections": summary_fields["summary_sections"],
+                    "detail_sections": summary_fields["detail_sections"],
                     "summary_status": summary_fields["summary_status"],
                     "scanned_at": document.get("scanned_at") or "",
                     "chunk_count": 0,
@@ -356,6 +475,10 @@ class VectorStore:
             if summary_fields["long_summary"] and not sources[source_id].get("long_summary"):
                 sources[source_id]["long_summary"] = summary_fields["long_summary"]
 
+            if summary_fields["summary_sections"] and not sources[source_id].get("summary_sections"):
+                sources[source_id]["summary_sections"] = summary_fields["summary_sections"]
+                sources[source_id]["detail_sections"] = summary_fields["summary_sections"]
+
             if (
                 summary_fields["summary_status"]
                 and sources[source_id].get("summary_status") == "unknown"
@@ -376,6 +499,7 @@ class VectorStore:
         - LLM başlığı
         - kısa özet
         - geniş özet
+        - başlıklı özet
         - chunk listesi
         birlikte döner.
         """
@@ -412,6 +536,8 @@ class VectorStore:
                 "summary": chunk_summary_fields["summary"],
                 "short_summary": chunk_summary_fields["short_summary"],
                 "long_summary": chunk_summary_fields["long_summary"],
+                "summary_sections": chunk_summary_fields["summary_sections"],
+                "detail_sections": chunk_summary_fields["detail_sections"],
                 "summary_status": chunk_summary_fields["summary_status"],
                 "text": public_document.get("text") or public_document.get("content") or "",
                 "content": public_document.get("content") or public_document.get("text") or "",
@@ -435,6 +561,8 @@ class VectorStore:
             "summary": summary_fields["summary"],
             "short_summary": summary_fields["short_summary"],
             "long_summary": summary_fields["long_summary"],
+            "summary_sections": summary_fields["summary_sections"],
+            "detail_sections": summary_fields["detail_sections"],
             "summary_status": summary_fields["summary_status"],
             "scanned_at": first_document.get("scanned_at") or "",
             "chunk_count": len(chunks),

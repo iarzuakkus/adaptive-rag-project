@@ -5,6 +5,7 @@ Görev:
 - Kaynak içeriklerinden LLM destekli başlık ve özet üretir.
 - LLMService üzerinden Gemini ile haberleşir.
 - JSON çıktıyı güvenli şekilde parse eder.
+- Kaynak detay ekranı için 3-4 başlıklı özet alanını normalize eder.
 - LLM hata verirse servis katmanının fallback kullanabilmesi için hatayı yukarı taşır.
 """
 
@@ -66,15 +67,172 @@ def _clean_text(value: Any, max_length: int) -> str:
     return text[:max_length].rstrip() + "..."
 
 
+def _normalize_summary_section(section: Any, index: int) -> dict[str, str] | None:
+    """
+    LLM'den gelen tek bir başlıklı özet bloğunu güvenli hale getirir.
+
+    Beklenen format:
+    {
+      "title": "...",
+      "content": "..."
+    }
+    """
+
+    if not section:
+        return None
+
+    if isinstance(section, str):
+        content = _clean_text(section, 520)
+
+        if not content:
+            return None
+
+        return {
+            "title": f"Başlık {index + 1}",
+            "content": content,
+        }
+
+    if not isinstance(section, dict):
+        return None
+
+    title = (
+        section.get("title")
+        or section.get("heading")
+        or section.get("header")
+        or section.get("name")
+        or section.get("label")
+        or f"Başlık {index + 1}"
+    )
+
+    content = (
+        section.get("content")
+        or section.get("text")
+        or section.get("summary")
+        or section.get("description")
+        or section.get("body")
+        or ""
+    )
+
+    title = _clean_text(title, 80)
+    content = _clean_text(content, 520)
+
+    if not content:
+        return None
+
+    return {
+        "title": title or f"Başlık {index + 1}",
+        "content": content,
+    }
+
+
+def _extract_sections_from_object(value: dict[str, Any]) -> list[Any]:
+    """
+    LLM başlıklı özeti dict içinde farklı isimlerle döndürürse listeye çevirir.
+    """
+
+    possible_list_keys = [
+        "summary_sections",
+        "detail_sections",
+        "sections",
+        "headings",
+        "items",
+    ]
+
+    for key in possible_list_keys:
+        if isinstance(value.get(key), list):
+            return value.get(key) or []
+
+    sections: list[dict[str, Any]] = []
+
+    for title, content in value.items():
+        if isinstance(content, str):
+            sections.append({
+                "title": title,
+                "content": content,
+            })
+
+        elif isinstance(content, dict):
+            sections.append({
+                "title": content.get("title") or content.get("heading") or title,
+                "content": (
+                    content.get("content")
+                    or content.get("text")
+                    or content.get("summary")
+                    or content.get("description")
+                    or ""
+                ),
+            })
+
+    return sections
+
+
+def _normalize_summary_sections(parsed: dict[str, Any]) -> list[dict[str, str]]:
+    """
+    LLM JSON çıktısından 3-4 başlıklı özet alanını çıkarır.
+
+    Öncelik:
+    - summary_sections
+    - detail_sections
+    - sections
+    - structured_summary
+    - heading_summary
+    - summary_by_headings
+    """
+
+    candidates = [
+        parsed.get("summary_sections"),
+        parsed.get("detail_sections"),
+        parsed.get("sections"),
+        parsed.get("structured_summary"),
+        parsed.get("structuredSummary"),
+        parsed.get("llm_summary_sections"),
+        parsed.get("llmSummarySections"),
+        parsed.get("heading_summary"),
+        parsed.get("headingSummary"),
+        parsed.get("summary_by_headings"),
+        parsed.get("summaryByHeadings"),
+    ]
+
+    raw_sections: list[Any] = []
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+
+        if isinstance(candidate, list):
+            raw_sections = candidate
+            break
+
+        if isinstance(candidate, dict):
+            extracted = _extract_sections_from_object(candidate)
+
+            if extracted:
+                raw_sections = extracted
+                break
+
+    normalized_sections: list[dict[str, str]] = []
+
+    for index, section in enumerate(raw_sections):
+        normalized_section = _normalize_summary_section(section, index)
+
+        if normalized_section:
+            normalized_sections.append(normalized_section)
+
+        if len(normalized_sections) >= 4:
+            break
+
+    return normalized_sections
+
+
 def generate_source_summary_with_llm(
     *,
     original_title: str,
     url: str,
     domain: str,
     content: str,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """
-    Kaynak için LLM destekli başlık, kısa özet ve geniş özet üretir.
+    Kaynak için LLM destekli başlık, kısa özet, geniş özet ve başlıklı detay özeti üretir.
     """
 
     if not content or not content.strip():
@@ -93,7 +251,7 @@ def generate_source_summary_with_llm(
         prompt=prompt,
         system_instruction=SOURCE_SUMMARY_SYSTEM_INSTRUCTION,
         temperature=0.2,
-        max_output_tokens=900,
+        max_output_tokens=1300,
     )
 
     parsed = _extract_json_object(response_text)
@@ -113,6 +271,8 @@ def generate_source_summary_with_llm(
         1200,
     )
 
+    summary_sections = _normalize_summary_sections(parsed)
+
     if not llm_title:
         llm_title = original_title or domain or "Başlıksız kaynak"
 
@@ -127,4 +287,6 @@ def generate_source_summary_with_llm(
         "short_summary": short_summary,
         "long_summary": long_summary,
         "summary": short_summary,
+        "summary_sections": summary_sections,
+        "detail_sections": summary_sections,
     }
