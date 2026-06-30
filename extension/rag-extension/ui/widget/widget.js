@@ -6,6 +6,7 @@
  * - Oturum açıksa widget panelini açar.
  * - Oturum kapalıysa pasif ekran gösterir.
  * - Chat / Kaynaklar / Notlar içeriklerini ayrı modüllerden çağırır.
+ * - Kaynaklar sekmesinde source-events ve recommendation-events eventlerini bağlar.
  */
 
 (function () {
@@ -47,12 +48,12 @@
       launcher.id = LAUNCHER_ID;
       launcher.type = "button";
       launcher.className = "rag-launcher";
-      launcher.setAttribute("aria-label", "Adaptive RAG oturum baloncuğu");
+      launcher.setAttribute("aria-label", "MemorAI oturum baloncuğu");
 
       launcher.innerHTML = `
         <img
           src="${getLogoUrl()}"
-          alt="Adaptive RAG Logo"
+          alt="MemorAI Logo"
           class="rag-launcher-logo"
         />
       `;
@@ -112,7 +113,7 @@
           <header class="rag-header">
             <div class="rag-brand">
               <div class="rag-brand-text">
-                <strong>Adaptive RAG</strong>
+                <strong>MemorAI</strong>
                 <span>Oturum kapalı</span>
               </div>
             </div>
@@ -140,7 +141,7 @@
           <header class="rag-header">
             <div class="rag-brand">
               <div class="rag-brand-text">
-                <strong>Adaptive RAG</strong>
+                <strong>MemorAI</strong>
                 <span>Kişisel araştırma asistanı</span>
               </div>
             </div>
@@ -205,7 +206,15 @@
         ? window.AdaptiveRagSourcesTab.renderSourcesTab()
         : renderMissingModule("Kaynaklar modülü yüklenmedi.");
 
+      /*
+        Önemli:
+        recommendation-events önce bind edilir.
+        Çünkü öneri butonları ileride source-events.js içinden tamamen temizlenecek.
+        Geçiş sürecinde aynı butona iki listener düşmemesi için yeni modül önce çalışır.
+      */
+      window.AdaptiveRagRecommendationEvents?.bindRecommendationEvents?.(renderActiveTab);
       window.AdaptiveRagSourceEvents?.bindSourceEvents?.(renderActiveTab);
+
       return;
     }
 

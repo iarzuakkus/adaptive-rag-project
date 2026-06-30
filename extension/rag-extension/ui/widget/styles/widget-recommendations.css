@@ -3,7 +3,7 @@
 
   Görev:
   - Kaynaklar sekmesi içindeki Öneriler panelinin tasarımını yönetir.
-  - Öneri hero alanı, öneri kartları, neden önerildi kutusu ve öneri butonları burada tasarlanır.
+  - Öneri hero alanı, öneri kartları, meta satırı, neden önerildi kutusu ve öneri butonları burada tasarlanır.
 */
 
 .rag-recommendations-panel,
@@ -23,6 +23,7 @@
   gap: 10px;
 }
 
+/* Hero alanı */
 .rag-recommendation-hero {
   width: 100%;
   max-width: 100%;
@@ -34,8 +35,8 @@
   border-radius: 17px;
   border: 1px solid rgba(238, 167, 255, 0.12);
   background:
-    radial-gradient(circle at top left, rgba(255, 0, 80, 0.09), transparent 38%),
-    radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.055), transparent 38%),
+    radial-gradient(circle at top left, rgba(255, 0, 80, 0.085), transparent 38%),
+    radial-gradient(circle at bottom right, rgba(238, 167, 255, 0.05), transparent 38%),
     linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
   box-shadow:
     0 10px 24px rgba(0, 0, 0, 0.15),
@@ -53,7 +54,7 @@
   border-radius: 14px;
   border: 1px solid rgba(238, 167, 255, 0.15);
   background:
-    radial-gradient(circle, rgba(255, 0, 80, 0.17), transparent 62%),
+    radial-gradient(circle, rgba(255, 0, 80, 0.16), transparent 62%),
     rgba(255, 255, 255, 0.035);
   box-shadow:
     0 0 14px rgba(255, 0, 80, 0.13),
@@ -114,6 +115,7 @@
   color: var(--rag-color-text-muted);
 }
 
+/* Liste */
 .rag-recommendation-list {
   width: 100%;
   max-width: 100%;
@@ -123,6 +125,7 @@
   gap: 10px;
 }
 
+/* Öneri kartı */
 .rag-recommendation-card {
   width: 100%;
   max-width: 100%;
@@ -133,7 +136,7 @@
   border: 1px solid rgba(238, 167, 255, 0.12);
   background:
     radial-gradient(circle at top right, rgba(238, 167, 255, 0.055), transparent 36%),
-    radial-gradient(circle at bottom left, rgba(255, 0, 80, 0.055), transparent 36%),
+    radial-gradient(circle at bottom left, rgba(255, 0, 80, 0.052), transparent 36%),
     linear-gradient(145deg, rgba(255, 255, 255, 0.038), rgba(255, 255, 255, 0.018));
   box-shadow:
     0 8px 20px rgba(0, 0, 0, 0.14),
@@ -146,7 +149,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  margin-bottom: 9px;
+  margin-bottom: 8px;
 }
 
 .rag-recommendation-card-title {
@@ -157,10 +160,10 @@
 .rag-recommendation-card-title strong {
   display: block;
   width: 100%;
-  max-height: 34px;
+  max-height: 38px;
   overflow: hidden;
   font-size: 11.8px;
-  line-height: 1.38;
+  line-height: 1.4;
   color: var(--rag-color-text);
   font-weight: 650;
 }
@@ -176,17 +179,58 @@
   white-space: nowrap;
 }
 
+/* Öneri meta satırı */
+.rag-recommendation-meta-row {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.rag-recommendation-meta-row span {
+  max-width: 100%;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(238, 167, 255, 0.09);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.016));
+  color: var(--rag-color-text-soft);
+  font-size: 9.4px;
+  line-height: 1.2;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rag-recommendation-meta-row span:first-child {
+  color: #eea7ff;
+  border-color: rgba(238, 167, 255, 0.16);
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 80, 0.08), transparent 48%),
+    rgba(255, 255, 255, 0.03);
+}
+
+/* Açıklama */
 .rag-recommendation-summary {
   width: 100%;
-  max-height: 64px;
+  max-height: 76px;
   margin: 0 0 9px;
   overflow: hidden;
   font-size: 10.8px;
-  line-height: 1.5;
+  line-height: 1.52;
   color: var(--rag-color-text-muted);
   font-weight: 400;
 }
 
+/* Neden önerildi */
 .rag-recommendation-reason {
   width: 100%;
   max-width: 100%;
@@ -196,6 +240,7 @@
   border-radius: 13px;
   border: 1px solid rgba(238, 167, 255, 0.08);
   background:
+    radial-gradient(circle at top left, rgba(238, 167, 255, 0.035), transparent 42%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.032), rgba(255, 255, 255, 0.018));
 }
 
@@ -206,17 +251,19 @@
   line-height: 1.2;
   color: var(--rag-color-text-soft);
   font-weight: 650;
+  letter-spacing: 0.025em;
 }
 
 .rag-recommendation-reason p {
-  max-height: 48px;
+  max-height: 58px;
   margin: 0;
   overflow: hidden;
   font-size: 10.4px;
-  line-height: 1.45;
+  line-height: 1.48;
   color: var(--rag-color-text-muted);
 }
 
+/* Aksiyonlar */
 .rag-recommendation-actions {
   width: 100%;
   max-width: 100%;
@@ -237,7 +284,36 @@
   white-space: nowrap;
 }
 
+.rag-recommendation-actions .rag-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.rag-recommendation-actions .rag-icon-button {
+  width: 13px;
+  height: 13px;
+}
+
+.rag-recommendation-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Loading spinner hero içinde düzgün dursun */
+.rag-recommendation-hero-icon .rag-action-loader {
+  position: relative;
+  z-index: 1;
+}
+
+/* Mobil uyum */
 @media (max-width: 540px) {
+  .rag-recommendations-panel {
+    gap: 9px;
+  }
+
   .rag-recommendation-hero {
     padding: 10px;
     gap: 9px;
@@ -254,11 +330,27 @@
     padding: 10px;
   }
 
+  .rag-recommendation-card-title strong {
+    font-size: 11.5px;
+    max-height: 36px;
+  }
+
   .rag-recommendation-summary {
     font-size: 10.6px;
+    max-height: 74px;
+  }
+
+  .rag-recommendation-reason p {
+    max-height: 56px;
   }
 
   .rag-recommendation-actions {
     gap: 6px;
+  }
+
+  .rag-recommendation-actions .rag-primary-btn,
+  .rag-recommendation-actions .rag-secondary-btn {
+    font-size: 10.1px;
+    padding-inline: 9px;
   }
 }

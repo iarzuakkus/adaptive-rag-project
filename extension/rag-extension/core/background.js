@@ -36,6 +36,16 @@ function getChunkId(request) {
   return request?.chunkId || request?.payload?.chunkId || "";
 }
 
+function callBackendMethod(backend, methodName, ...args) {
+  if (!backend || typeof backend[methodName] !== "function") {
+    throw new Error(
+      `Backend client içinde ${methodName} metodu bulunamadı. backend-client.js dosyasını güncelle.`
+    );
+  }
+
+  return backend[methodName](...args);
+}
+
 function sendAsyncResponse(promise, sendResponse) {
   promise
     .then((result) => {
@@ -93,7 +103,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     GET_SOURCE_CHUNKS: () => backend.getSourceChunks(getSourceId(request)),
 
     GET_CHUNK_DETAIL: () =>
-      backend.getChunkDetail(getSourceId(request), getChunkId(request))
+      backend.getChunkDetail(getSourceId(request), getChunkId(request)),
+
+    GENERATE_RECOMMENDATIONS: () =>
+      callBackendMethod(
+        backend,
+        "generateRecommendations",
+        getPayload(request)
+      ),
+
+    REFRESH_RECOMMENDATIONS: () =>
+      callBackendMethod(
+        backend,
+        "generateRecommendations",
+        {
+          ...getPayload(request),
+          force: true
+        }
+      )
   };
 
   const handler = handlers[request.type];

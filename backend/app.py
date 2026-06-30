@@ -20,11 +20,12 @@ from routes.pdf import router as pdf_router
 from routes.query import router as query_router
 from routes.chat import router as chat_router
 from routes.sources import router as sources_router
+from routes.research import router as research_router
 
 
 app = FastAPI(
     title="Adaptive RAG Backend",
-    description="Chrome extension için sayfa ingest, PDF, query, sources ve Chat RAG backend servisi.",
+    description="Chrome extension için sayfa ingest, PDF, query, sources, research ve Chat RAG backend servisi.",
     version="1.0.0",
 )
 
@@ -51,6 +52,7 @@ app.include_router(pdf_router)
 app.include_router(query_router)
 app.include_router(chat_router)
 app.include_router(sources_router)
+app.include_router(research_router)
 
 
 @app.get("/")
@@ -65,6 +67,7 @@ def root():
             "query",
             "chat",
             "sources",
+            "research",
         ],
     }
 
@@ -80,6 +83,7 @@ def health_check():
             "query": True,
             "chat": True,
             "sources": True,
+            "research": True,
         },
     }
 

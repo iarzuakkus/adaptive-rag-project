@@ -3,12 +3,12 @@
  *
  * Görev:
  * - Kaynaklar sekmesi içindeki Öneriler panelinin HTML içeriğini üretir.
- * - İlk aşamada mock/boş state ile çalışır.
- * - Backend entegrasyonu daha sonra recommendation-store / research endpoint üzerinden bağlanacaktır.
+ * - Mock veri üretmez.
+ * - Backend/recommendation store tarafından verilen gerçek önerileri render eder.
  *
  * Not:
  * - Bu dosya sadece render işi yapar.
- * - Event yönetimi recommendation-events.js içinde yapılacaktır.
+ * - Öneri üretme, yenileme, sayfa açma ve öneriyi tarama eventleri source-events.js üzerinden yönetilir.
  */
 
 (function () {
@@ -75,45 +75,202 @@
     `;
   }
 
-  function getMockRecommendations() {
-    return [
-      {
-        id: "mock-rec-1",
-        title: "Konuya benzer yeni kaynak",
-        url: "",
-        domain: "Öneri kaynağı",
-        summary:
-          "Mevcut taranan kaynakla ilişkili yeni bir sayfa önerisi burada görünecek. Backend bağlandığında bu alan gerçek web arama sonuçlarıyla dolacak.",
-        reason:
-          "Bu öneri, taranan sayfalarda geçen ana kavramları genişletmek ve araştırmayı derinleştirmek için hazırlanır."
-      },
-      {
-        id: "mock-rec-2",
-        title: "Alternatif açıklama içeren kaynak",
-        url: "",
-        domain: "Öneri kaynağı",
-        summary:
-          "Kullanıcının araştırma bağlamına göre bulunacak ikinci kaynak burada kart olarak listelenecek.",
-        reason:
-          "Bu kaynak, mevcut içeriği farklı bir bakış açısıyla destekleyebilir."
-      }
+  function getRecommendationStoreState() {
+    const possibleStores = [
+      window.AdaptiveRagRecommendationStore,
+      window.AdaptiveRagRecommendationsStore,
+      window.AdaptiveRagRecommendationState,
+      window.AdaptiveRagRecommendationsState
     ];
+
+    for (const store of possibleStores) {
+      if (!store) {
+        continue;
+      }
+
+      if (typeof store.getState === "function") {
+        const state = store.getState();
+
+        if (state && typeof state === "object") {
+          return state;
+        }
+      }
+
+      if (typeof store.getRecommendations === "function") {
+        return {
+          recommendations: store.getRecommendations()
+        };
+      }
+    }
+
+    return {};
+  }
+
+  function resolvePanelOptions(options = {}) {
+    const storeState = getRecommendationStoreState();
+
+    const recommendations = Array.isArray(options.recommendations)
+      ? options.recommendations
+      : Array.isArray(storeState.recommendations)
+        ? storeState.recommendations
+        : [];
+
+    const isLoading =
+      options.isLoading === true ||
+      storeState.isLoading === true ||
+      storeState.loading === true;
+
+    const error = String(
+      options.error ||
+      storeState.error ||
+      storeState.message ||
+      ""
+    ).trim();
+
+    const sourceCount = Number(
+      options.sourceCount ??
+      storeState.sourceCount ??
+      0
+    );
+
+    const generatedAt =
+      options.generatedAt ||
+      storeState.generatedAt ||
+      storeState.updatedAt ||
+      "";
+
+    return {
+      recommendations,
+      isLoading,
+      error,
+      sourceCount,
+      generatedAt
+    };
+  }
+
+  function formatDate(value) {
+    if (!value) {
+      return "";
+    }
+
+    try {
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return "";
+      }
+
+      return date.toLocaleString("tr-TR", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    } catch {
+      return "";
+    }
+  }
+
+  function getRecommendationId(item, index) {
+    return (
+      item?.id ||
+      item?.recommendation_id ||
+      item?.recommendationId ||
+      item?.query_id ||
+      `recommendation-${index + 1}`
+    );
+  }
+
+  function getRecommendationTitle(item) {
+    return (
+      item?.title ||
+      item?.query_title ||
+      item?.search_title ||
+      item?.heading ||
+      "Başlıksız öneri"
+    );
+  }
+
+  function getRecommendationUrl(item) {
+    return (
+      item?.url ||
+      item?.source_url ||
+      item?.page_url ||
+      item?.target_url ||
+      ""
+    );
+  }
+
+  function getShortUrl(url) {
+    try {
+      const parsedUrl = new URL(url);
+      return parsedUrl.hostname.replace("www.", "");
+    } catch {
+      return "";
+    }
+  }
+
+  function getRecommendationDomain(item) {
+    const url = getRecommendationUrl(item);
+
+    return (
+      item?.domain ||
+      item?.site ||
+      item?.hostname ||
+      getShortUrl(url) ||
+      "Kaynak önerisi"
+    );
+  }
+
+  function getRecommendationSummary(item) {
+    return (
+      item?.summary ||
+      item?.description ||
+      item?.snippet ||
+      item?.content ||
+      "Bu öneri için açıklama henüz oluşturulmadı."
+    );
+  }
+
+  function getRecommendationReason(item) {
+    return (
+      item?.reason ||
+      item?.why ||
+      item?.why_recommended ||
+      item?.recommendation_reason ||
+      "Bu öneri mevcut kaynak bağlamıyla ilişkili olduğu için gösteriliyor."
+    );
+  }
+
+  function getRecommendationQuery(item) {
+    return (
+      item?.query ||
+      item?.search_query ||
+      item?.searchQuery ||
+      item?.keyword ||
+      ""
+    );
+  }
+
+  function getRecommendationBadge(item) {
+    return (
+      item?.type ||
+      item?.category ||
+      item?.label ||
+      "Öneri"
+    );
   }
 
   function renderRecommendationsPanel(options = {}) {
-    const recommendations = Array.isArray(options.recommendations)
-      ? options.recommendations
-      : getMockRecommendations();
+    const resolved = resolvePanelOptions(options);
+    const recommendations = resolved.recommendations;
 
-    const isLoading = options.isLoading === true;
-    const error = String(options.error || "").trim();
-
-    if (isLoading) {
-      return renderLoadingRecommendations();
+    if (resolved.isLoading) {
+      return renderLoadingRecommendations(resolved.sourceCount);
     }
 
-    if (error) {
-      return renderRecommendationsError(error);
+    if (resolved.error) {
+      return renderRecommendationsError(resolved.error);
     }
 
     return `
@@ -126,33 +283,49 @@
           <div class="rag-recommendation-hero-text">
             <strong>Akıllı kaynak önerileri</strong>
             <span>
-              Taranan kaynaklardan konu çıkarımı yapılarak ilgili yeni sayfalar burada listelenir.
+              Taranan kaynaklardan konu çıkarımı yapılarak araştırmayı genişletecek yeni kaynak fikirleri burada listelenir.
             </span>
           </div>
         </div>
 
         <div class="rag-recommendation-count-line">
-          ${recommendations.length} öneri · Araştırma modu
+          ${renderCountLine(recommendations.length, resolved.sourceCount, resolved.generatedAt)}
         </div>
 
         <div class="rag-recommendation-list">
           ${
             recommendations.length
               ? recommendations.map(renderRecommendationCard).join("")
-              : renderEmptyRecommendations()
+              : renderEmptyRecommendations(resolved.sourceCount)
           }
         </div>
       </div>
     `;
   }
 
-  function renderRecommendationCard(item) {
-    const id = item?.id || "";
-    const title = item?.title || "Başlıksız öneri";
-    const summary = item?.summary || "Bu öneri için kısa özet henüz oluşturulmadı.";
-    const reason = item?.reason || "Bu öneri mevcut kaynak bağlamıyla ilişkili olduğu için gösteriliyor.";
-    const domain = item?.domain || "Kaynak adresi yok";
-    const url = item?.url || "";
+  function renderCountLine(recommendationCount, sourceCount, generatedAt) {
+    const dateText = formatDate(generatedAt);
+
+    if (dateText) {
+      return `${recommendationCount} öneri · ${dateText}`;
+    }
+
+    if (sourceCount > 0) {
+      return `${recommendationCount} öneri · ${sourceCount} kaynak analiz edildi`;
+    }
+
+    return `${recommendationCount} öneri · Araştırma modu`;
+  }
+
+  function renderRecommendationCard(item, index) {
+    const id = getRecommendationId(item, index);
+    const title = getRecommendationTitle(item);
+    const summary = getRecommendationSummary(item);
+    const reason = getRecommendationReason(item);
+    const domain = getRecommendationDomain(item);
+    const url = getRecommendationUrl(item);
+    const query = getRecommendationQuery(item);
+    const badge = getRecommendationBadge(item);
 
     return `
       <article
@@ -170,13 +343,22 @@
           </div>
         </div>
 
+        <div class="rag-recommendation-meta-row">
+          <span>${escapeHtml(badge)}</span>
+          ${
+            query
+              ? `<span>${escapeHtml(trimText(query, 54))}</span>`
+              : ""
+          }
+        </div>
+
         <p class="rag-recommendation-summary">
-          ${escapeHtml(trimText(summary, 210))}
+          ${escapeHtml(trimText(summary, 260))}
         </p>
 
         <div class="rag-recommendation-reason">
           <span>Neden önerildi?</span>
-          <p>${escapeHtml(trimText(reason, 180))}</p>
+          <p>${escapeHtml(trimText(reason, 220))}</p>
         </div>
 
         <div class="rag-recommendation-actions">
@@ -184,7 +366,7 @@
             url
               ? `
                 <button
-                  class="rag-secondary-btn rag-open-recommendation-btn"
+                  class="rag-secondary-btn rag-open-recommendation-btn rag-icon-btn"
                   type="button"
                   data-url="${escapeHtml(url)}"
                 >
@@ -196,34 +378,53 @@
           }
 
           <button
-            class="rag-primary-btn rag-scan-recommendation-btn"
+            class="rag-primary-btn rag-scan-recommendation-btn rag-icon-btn"
             type="button"
             data-recommendation-id="${escapeHtml(id)}"
             ${url ? `data-url="${escapeHtml(url)}"` : ""}
+            ${query ? `data-query="${escapeHtml(query)}"` : ""}
+            ${url || query ? "" : "disabled"}
           >
             ${renderIcon("scan", "rag-icon-button")}
-            <span>Tara ve ekle</span>
+            <span>${url ? "Tara ve ekle" : "Kaynak ara"}</span>
           </button>
         </div>
       </article>
     `;
   }
 
-  function renderEmptyRecommendations() {
+  function renderEmptyRecommendations(sourceCount = 0) {
+    const description =
+      sourceCount > 0
+        ? "Mevcut kaynaklara göre yeni araştırma önerileri üretmek için üstteki öneri üret butonunu kullan."
+        : "Öneri üretmek için önce birkaç web sayfasını kaynaklara ekle.";
+
     return `
       <div class="rag-empty-state">
         <strong>Henüz öneri yok.</strong>
-        <span>Mevcut kaynaklara göre yeni öneriler üretmek için öneri üret butonunu kullan.</span>
+        <span>${escapeHtml(description)}</span>
       </div>
     `;
   }
 
-  function renderLoadingRecommendations() {
+  function renderLoadingRecommendations(sourceCount = 0) {
     return `
       <div class="rag-recommendations-panel">
-        <div class="rag-empty-state">
-          <strong>Öneriler hazırlanıyor.</strong>
-          <span>Mevcut kaynaklardan konu çıkarımı yapılıyor.</span>
+        <div class="rag-recommendation-hero">
+          <div class="rag-recommendation-hero-icon">
+            <span class="rag-action-loader" aria-hidden="true"></span>
+          </div>
+
+          <div class="rag-recommendation-hero-text">
+            <strong>Öneriler hazırlanıyor</strong>
+            <span>
+              ${
+                sourceCount > 0
+                  ? `${sourceCount} kaynak üzerinden konu çıkarımı yapılıyor.`
+                  : "Mevcut kaynaklardan konu çıkarımı yapılıyor."
+              }
+            </span>
+          </div>
         </div>
       </div>
     `;

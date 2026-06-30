@@ -26,6 +26,7 @@
   const INGEST_TIMEOUT_MS = 60000;
   const CHAT_TIMEOUT_MS = 45000;
   const PDF_TIMEOUT_MS = 60000;
+  const RECOMMENDATION_TIMEOUT_MS = 60000;
 
   function buildUrl(baseUrl, endpoint) {
     const cleanBase = String(baseUrl || "").replace(/\/+$/, "");
@@ -264,6 +265,20 @@
     });
   }
 
+  function generateRecommendations(payload) {
+    return safeRequest("/research/recommendations", () =>
+      requestBackend("/research/recommendations", {
+        method: "POST",
+        body: {
+          sources: Array.isArray(payload?.sources) ? payload.sources : [],
+          source_count: Number(payload?.source_count || 0),
+          force: payload?.force === true
+        },
+        timeoutMs: RECOMMENDATION_TIMEOUT_MS
+      })
+    );
+  }
+
   self.AdaptiveRagBackendClient = {
     __moduleName: "backend-client",
 
@@ -275,6 +290,7 @@
     getSourceDetail,
     deleteSource,
     getSourceChunks,
-    getChunkDetail
+    getChunkDetail,
+    generateRecommendations
   };
 })();
