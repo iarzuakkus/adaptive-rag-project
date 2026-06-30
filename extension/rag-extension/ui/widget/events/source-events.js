@@ -3,16 +3,20 @@
  *
  * Görev:
  * - Kaynaklar sekmesindeki buton eventlerini yönetir.
+ * - Kaynaklar / Öneriler alt sekme geçişlerini yönetir.
  * - Elle tarama modundaki "Sayfayı tara" butonunu mevcut sayfa tarama akışına bağlar.
  * - Backend kaynak listesini yeniler.
  * - Kaynak detay isteğini backend'e gönderir.
  * - Kaynak detayını Kaynaklar sekmesinin içinde açar.
  * - "Siteye git" butonlarını çalıştırır.
  * - "Sil" butonuyla kaynağı backend üzerinden siler.
+ * - Öneriler paneli için ilk UI event altyapısını hazırlar.
  *
  * Not:
  * - Mock veri üretmez.
  * - Kaynakların gerçek sahibi backend'dir.
+ * - Öneri üretme backend entegrasyonu daha sonra recommendation/research servisine bağlanacaktır.
+ * - İkon-only butonlarda yazılı loading basılmaz; spinner / tik / hata ikonu kullanılır.
  */
 
 (function () {
@@ -32,6 +36,14 @@
     document.body.dataset.ragSourceEventsBound = "1";
 
     document.addEventListener("click", async (event) => {
+      const subtabButton = event.target.closest(".rag-source-subtab");
+
+      if (subtabButton) {
+        event.preventDefault();
+        handleSourceSubtabChange(subtabButton);
+        return;
+      }
+
       const backButton = event.target.closest(".rag-source-back-btn");
 
       if (backButton) {
@@ -58,6 +70,32 @@
         return;
       }
 
+      const generateRecommendationsButton = event.target.closest(
+        "#generateRecommendationsBtn"
+      );
+
+      if (generateRecommendationsButton) {
+        event.preventDefault();
+        await handleGenerateRecommendations(
+          generateRecommendationsButton,
+          lastRenderActiveTab
+        );
+        return;
+      }
+
+      const refreshRecommendationsButton = event.target.closest(
+        "#refreshRecommendationsBtn"
+      );
+
+      if (refreshRecommendationsButton) {
+        event.preventDefault();
+        await handleRefreshRecommendations(
+          refreshRecommendationsButton,
+          lastRenderActiveTab
+        );
+        return;
+      }
+
       const detailButton = event.target.closest(".rag-source-detail-btn");
 
       if (detailButton) {
@@ -70,7 +108,30 @@
 
       if (openButton) {
         event.preventDefault();
-        handleOpenSource(openButton);
+        handleOpenUrlButton(openButton);
+        return;
+      }
+
+      const openRecommendationButton = event.target.closest(
+        ".rag-open-recommendation-btn"
+      );
+
+      if (openRecommendationButton) {
+        event.preventDefault();
+        handleOpenUrlButton(openRecommendationButton);
+        return;
+      }
+
+      const scanRecommendationButton = event.target.closest(
+        ".rag-scan-recommendation-btn"
+      );
+
+      if (scanRecommendationButton) {
+        event.preventDefault();
+        await handleScanRecommendation(
+          scanRecommendationButton,
+          lastRenderActiveTab
+        );
         return;
       }
 
@@ -211,21 +272,95 @@
     }
   }
 
+  function isIconOnlyButton(button) {
+    return button?.dataset?.iconOnly === "true";
+  }
+
+  function rememberButtonHtml(button) {
+    if (!button) {
+      return;
+    }
+
+    if (!button.dataset.originalHtml) {
+      button.dataset.originalHtml = button.innerHTML;
+    }
+  }
+
+  function restoreButtonHtml(button) {
+    if (!button) {
+      return;
+    }
+
+    button.classList.remove("is-loading", "is-success", "is-error");
+
+    if (button.dataset.originalHtml) {
+      button.innerHTML = button.dataset.originalHtml;
+      delete button.dataset.originalHtml;
+    }
+  }
+
+  function setIconButtonState(button, state) {
+    if (!button) {
+      return;
+    }
+
+    rememberButtonHtml(button);
+
+    button.classList.remove("is-loading", "is-success", "is-error");
+
+    if (state === "loading") {
+      button.classList.add("is-loading");
+      button.innerHTML = `<span class="rag-action-loader" aria-hidden="true"></span>`;
+      return;
+    }
+
+    if (state === "success") {
+      button.classList.add("is-success");
+      button.innerHTML = `<span class="rag-action-check" aria-hidden="true"></span>`;
+      return;
+    }
+
+    if (state === "error") {
+      button.classList.add("is-error");
+      button.innerHTML = `<span class="rag-action-error" aria-hidden="true"></span>`;
+    }
+  }
+
   function setButtonLoading(button, isLoading, loadingText) {
     if (!button) {
       return;
     }
 
     if (isLoading) {
-      button.dataset.originalText = button.textContent;
       button.disabled = true;
-      button.textContent = loadingText || "İşleniyor...";
+
+      if (isIconOnlyButton(button)) {
+        setIconButtonState(button, "loading");
+        return;
+      }
+
+      rememberButtonHtml(button);
+      button.innerHTML = `<span>${loadingText || "İşleniyor..."}</span>`;
       return;
     }
 
     button.disabled = false;
-    button.textContent = button.dataset.originalText || button.textContent;
-    delete button.dataset.originalText;
+    restoreButtonHtml(button);
+  }
+
+  function handleSourceSubtabChange(button) {
+    const nextSubtab = button.dataset.sourceSubtab;
+
+    if (!nextSubtab) {
+      return;
+    }
+
+    if (window.AdaptiveRagSourcesTab?.setSourcesSubTab) {
+      window.AdaptiveRagSourcesTab.setSourcesSubTab(nextSubtab);
+      return;
+    }
+
+    renderSourcesTabFallback();
   }
 
   function handleBackToSources() {
@@ -247,8 +382,19 @@
       setButtonLoading(refreshButton, true, "Yenileniyor...");
 
       await refreshSourcesTab(renderActiveTab);
+
+      if (isIconOnlyButton(refreshButton)) {
+        setIconButtonState(refreshButton, "success");
+        await wait(450);
+      }
     } catch (error) {
       console.error("[SOURCE EVENTS] Kaynak yenileme hatası:", error);
+
+      if (isIconOnlyButton(refreshButton)) {
+        setIconButtonState(refreshButton, "error");
+        await wait(500);
+      }
+
       alert(error.message || "Kaynaklar yenilenirken hata oluştu.");
     } finally {
       refreshButton.dataset.loading = "0";
@@ -310,8 +456,8 @@
     }
   }
 
-  function handleOpenSource(openButton) {
-    const url = openButton.dataset.url;
+  function handleOpenUrlButton(button) {
+    const url = button.dataset.url;
 
     if (!url) {
       return;
@@ -368,8 +514,6 @@
       return;
     }
 
-    const originalText = scanButton.textContent;
-
     try {
       const scanDecision = canScanCurrentPage();
 
@@ -396,7 +540,7 @@
 
       scanButton.dataset.scanning = "1";
       scanButton.disabled = true;
-      scanButton.textContent = "Taranıyor...";
+      setIconButtonState(scanButton, "loading");
 
       const isReady = await prepareStoresBeforeScan();
 
@@ -412,23 +556,158 @@
 
       await markCurrentUrlAsScanned();
 
-      scanButton.textContent = result?.skipped ? "Zaten tarandı" : "Tarandı";
+      setIconButtonState(scanButton, "success");
+      await wait(650);
 
       await refreshSourcesTab(renderActiveTab);
     } catch (error) {
       console.error("[SOURCE EVENTS] Sayfa tarama hatası:", error);
 
-      scanButton.textContent = "Tekrar dene";
+      setIconButtonState(scanButton, "error");
+      await wait(550);
+
       alert(error.message || "Sayfa taranırken hata oluştu.");
     } finally {
       setTimeout(() => {
         if (document.body.contains(scanButton)) {
           scanButton.dataset.scanning = "0";
           scanButton.disabled = false;
-          scanButton.textContent = originalText;
+          restoreButtonHtml(scanButton);
         }
-      }, 1000);
+      }, 350);
     }
+  }
+
+  async function handleGenerateRecommendations(button, renderActiveTab) {
+    if (button.dataset.loading === "1") {
+      return;
+    }
+
+    try {
+      button.dataset.loading = "1";
+      setButtonLoading(button, true, "Üretiliyor...");
+
+      if (window.AdaptiveRagSourcesTab?.setSourcesSubTab) {
+        window.AdaptiveRagSourcesTab.setSourcesSubTab("recommendations");
+      }
+
+      await wait(350);
+
+      if (typeof renderActiveTab === "function") {
+        await renderActiveTab();
+      } else if (window.AdaptiveRagWidget?.renderActiveTab) {
+        await window.AdaptiveRagWidget.renderActiveTab();
+      }
+
+      if (isIconOnlyButton(button)) {
+        setIconButtonState(button, "success");
+        await wait(450);
+      }
+
+      console.log("[SOURCE EVENTS] Öneri üretme UI akışı hazır. Backend entegrasyonu daha sonra bağlanacak.");
+    } catch (error) {
+      console.error("[SOURCE EVENTS] Öneri üretme hatası:", error);
+
+      if (isIconOnlyButton(button)) {
+        setIconButtonState(button, "error");
+        await wait(500);
+      }
+
+      alert(error.message || "Öneriler üretilirken hata oluştu.");
+    } finally {
+      button.dataset.loading = "0";
+      setButtonLoading(button, false);
+    }
+  }
+
+  async function handleRefreshRecommendations(button, renderActiveTab) {
+    if (button.dataset.loading === "1") {
+      return;
+    }
+
+    try {
+      button.dataset.loading = "1";
+      setButtonLoading(button, true, "Yenileniyor...");
+
+      await wait(250);
+
+      if (window.AdaptiveRagSourcesTab?.setSourcesSubTab) {
+        window.AdaptiveRagSourcesTab.setSourcesSubTab("recommendations");
+      }
+
+      if (typeof renderActiveTab === "function") {
+        await renderActiveTab();
+      } else if (window.AdaptiveRagWidget?.renderActiveTab) {
+        await window.AdaptiveRagWidget.renderActiveTab();
+      }
+
+      if (isIconOnlyButton(button)) {
+        setIconButtonState(button, "success");
+        await wait(450);
+      }
+    } catch (error) {
+      console.error("[SOURCE EVENTS] Öneri yenileme hatası:", error);
+
+      if (isIconOnlyButton(button)) {
+        setIconButtonState(button, "error");
+        await wait(500);
+      }
+
+      alert(error.message || "Öneriler yenilenirken hata oluştu.");
+    } finally {
+      button.dataset.loading = "0";
+      setButtonLoading(button, false);
+    }
+  }
+
+  async function handleScanRecommendation(button, renderActiveTab) {
+    if (button.dataset.loading === "1") {
+      return;
+    }
+
+    const url = button.dataset.url || "";
+
+    try {
+      button.dataset.loading = "1";
+      setButtonLoading(button, true, "Hazırlanıyor...");
+
+      await wait(300);
+
+      if (!url) {
+        throw new Error(
+          "Bu öneri henüz gerçek bir URL'ye bağlı değil. Backend öneri sistemi bağlanınca bu buton önerilen sayfayı tarayıp kaynaklara ekleyecek."
+        );
+      }
+
+      window.open(url, "_blank", "noopener,noreferrer");
+
+      if (typeof renderActiveTab === "function") {
+        await renderActiveTab();
+      }
+
+      if (isIconOnlyButton(button)) {
+        setIconButtonState(button, "success");
+        await wait(450);
+      }
+    } catch (error) {
+      console.error("[SOURCE EVENTS] Öneri tarama hatası:", error);
+
+      if (isIconOnlyButton(button)) {
+        setIconButtonState(button, "error");
+        await wait(500);
+      }
+
+      alert(error.message || "Öneri kaynağı taranırken hata oluştu.");
+    } finally {
+      button.dataset.loading = "0";
+      setButtonLoading(button, false);
+    }
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
   }
 
   window.AdaptiveRagSourceEvents = {

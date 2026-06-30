@@ -3,12 +3,12 @@
 
   Görev:
   - Kaynaklar sekmesinin liste görünümünü yönetir.
-  - Kaynak kartları, header aksiyonları ve zaman çizelgesi burada tasarlanır.
+  - Kaynaklar / Öneriler alt sekmesini tasarlar.
+  - Kaynak kartları, üst aksiyonlar ve zaman çizelgesi burada tasarlanır.
 
   Not:
-  - Kaynak detay ekranı bu dosyada yönetilmez.
-  - Detay ekranı widget-source-detail.css içindedir.
-  - Geliştirici bilgileri, chunk sayısı, status ve source_id kullanıcı arayüzünde gösterilmez.
+  - Öneriler paneli widget-recommendations.css içinde yönetilir.
+  - Kaynak detay ekranı widget-source-detail.css içindedir.
 */
 
 .rag-sources-layout,
@@ -25,7 +25,14 @@
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
+}
+
+.rag-source-panel {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .rag-source-list {
@@ -38,61 +45,285 @@
   gap: 10px;
 }
 
-/* Header */
-.rag-sources-layout .rag-section-head {
+/* Ortak ikon sistemi */
+.rag-icon-mask {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  flex-shrink: 0;
+  background:
+    linear-gradient(135deg, #ff315f 0%, #eea7ff 52%, #8f5cff 100%);
+  -webkit-mask-image: var(--rag-icon-url);
+  mask-image: var(--rag-icon-url);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  filter:
+    drop-shadow(0 0 5px rgba(255, 0, 80, 0.32))
+    drop-shadow(0 0 6px rgba(238, 167, 255, 0.25));
+}
+
+.rag-icon-button {
+  width: 13px;
+  height: 13px;
+}
+
+.rag-icon-subtab {
+  width: 13px;
+  height: 13px;
+}
+
+.rag-icon-action {
+  width: 15px;
+  height: 15px;
+}
+
+.rag-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.rag-icon-btn span:last-child {
+  line-height: 1;
+}
+
+/* Üst alt sekme paneli */
+.rag-source-topbar {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 5px;
+  border-radius: 18px;
+  border: 1px solid rgba(238, 167, 255, 0.1);
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 80, 0.055), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015));
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.rag-source-subtabs {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.rag-source-subtab {
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--rag-color-text-muted);
+  font-family: var(--rag-font-family);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 650;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition:
+    transform var(--rag-transition-normal),
+    border-color var(--rag-transition-normal),
+    background var(--rag-transition-normal),
+    color var(--rag-transition-normal),
+    box-shadow var(--rag-transition-normal);
+}
+
+.rag-source-subtab:hover {
+  transform: translateY(-1px);
+  color: var(--rag-color-text);
+  border-color: rgba(238, 167, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.rag-source-subtab.is-active {
+  color: var(--rag-color-text);
+  border-color: rgba(238, 167, 255, 0.21);
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 80, 0.1), transparent 42%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.072), rgba(255, 255, 255, 0.028));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.018) inset,
+    0 8px 18px rgba(255, 0, 80, 0.07);
+}
+
+/* Kaynak kartlarının üstündeki küçük aksiyon butonları */
+.rag-source-floating-actions {
   width: 100%;
   max-width: 100%;
   min-width: 0;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.rag-sources-layout .rag-section-head > div:first-child {
-  min-width: 0;
-  flex: 1;
-}
-
-.rag-sources-layout .rag-section-head h3 {
-  margin: 0 0 4px;
-  font-size: 15px;
-  line-height: 1.25;
-  font-weight: 600;
-  color: var(--rag-color-text);
-}
-
-.rag-sources-layout .rag-section-head p {
-  margin: 0;
-  max-width: 170px;
-  font-size: 11px;
-  line-height: 1.45;
-  font-weight: 400;
-  color: var(--rag-color-text-muted);
-}
-
-.rag-source-head-actions {
-  display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 7px;
-  flex-shrink: 0;
+  justify-content: center;
+  gap: 8px;
+  margin: 1px 0 0;
 }
 
-.rag-source-head-actions .rag-primary-btn,
-.rag-source-head-actions .rag-secondary-btn {
+.rag-icon-action-btn {
+  width: 38px;
+  height: 34px;
+  min-width: 38px;
   min-height: 34px;
-  padding-inline: 13px;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(238, 167, 255, 0.16);
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 80, 0.055), transparent 42%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
+  color: var(--rag-color-text);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  transition:
+    transform var(--rag-transition-normal),
+    border-color var(--rag-transition-normal),
+    background var(--rag-transition-normal),
+    box-shadow var(--rag-transition-normal),
+    opacity var(--rag-transition-normal);
+}
+
+.rag-icon-action-btn > span {
+  display: inline-grid;
+  place-items: center;
+}
+
+.rag-icon-action-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(238, 167, 255, 0.28);
+  background:
+    radial-gradient(circle at top left, rgba(255, 0, 80, 0.075), transparent 42%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025));
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.15),
+    0 0 14px rgba(238, 167, 255, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.rag-icon-action-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.rag-icon-action-btn.is-loading {
+  border-color: rgba(238, 167, 255, 0.3);
+}
+
+.rag-icon-action-btn.is-success {
+  border-color: rgba(238, 167, 255, 0.36);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.13),
+    0 0 14px rgba(238, 167, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.rag-icon-action-btn.is-error {
+  border-color: rgba(255, 95, 127, 0.38);
+}
+
+/* İkon-only işlem durumları */
+.rag-action-loader {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(238, 167, 255, 0.18);
+  border-top-color: #ff315f;
+  border-right-color: #eea7ff;
+  display: inline-block;
+  animation: ragActionSpin 0.75s linear infinite;
+  box-shadow:
+    0 0 8px rgba(255, 49, 95, 0.22),
+    0 0 10px rgba(238, 167, 255, 0.16);
+}
+
+.rag-action-check {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  position: relative;
+}
+
+.rag-action-check::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 1px;
+  width: 7px;
+  height: 12px;
+  border: solid #eea7ff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  filter:
+    drop-shadow(0 0 5px rgba(238, 167, 255, 0.55))
+    drop-shadow(0 0 7px rgba(255, 49, 95, 0.28));
+}
+
+.rag-action-error {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  position: relative;
+}
+
+.rag-action-error::before,
+.rag-action-error::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 2px;
+  width: 2px;
+  height: 12px;
+  border-radius: 999px;
+  background: #ff5f7f;
+  box-shadow: 0 0 7px rgba(255, 95, 127, 0.4);
+}
+
+.rag-action-error::before {
+  transform: rotate(45deg);
+}
+
+.rag-action-error::after {
+  transform: rotate(-45deg);
+}
+
+@keyframes ragActionSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .rag-source-count-line {
-  margin-top: -2px;
-  font-size: 10.5px;
-  line-height: 1.35;
-  font-weight: 400;
+  width: fit-content;
+  max-width: 100%;
+  align-self: center;
+  margin: 0 auto 2px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(238, 167, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 10px;
+  line-height: 1.25;
+  font-weight: 450;
   color: var(--rag-color-text-muted);
 }
 
@@ -112,7 +343,6 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
-/* Kart başlığı */
 .rag-source-card-head {
   width: 100%;
   max-width: 100%;
@@ -136,13 +366,13 @@
   display: block;
   width: 100%;
   max-width: 100%;
-  max-height: 36px;
+  max-height: 40px;
   margin: 0 0 5px;
   overflow: hidden;
   font-size: 12px;
   line-height: 1.38;
   color: var(--rag-color-text);
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: 0;
 }
 
@@ -154,7 +384,6 @@
   color: var(--rag-color-text-muted);
 }
 
-/* Kart içerik */
 .rag-source-card-body {
   width: 100%;
   max-width: 100%;
@@ -163,7 +392,6 @@
   border-top: 1px solid rgba(238, 167, 255, 0.07);
 }
 
-/* Kısa özet */
 .rag-source-summary {
   width: 100%;
   max-width: 100%;
@@ -176,7 +404,6 @@
   color: var(--rag-color-text-muted);
 }
 
-/* Domain */
 .rag-source-url {
   width: 100%;
   max-width: 100%;
@@ -195,7 +422,6 @@
   white-space: nowrap;
 }
 
-/* Kart aksiyonları */
 .rag-source-actions {
   width: 100%;
   max-width: 100%;
@@ -218,7 +444,6 @@
   white-space: nowrap;
 }
 
-/* Silme butonu */
 .rag-danger-btn {
   border: 1px solid rgba(255, 83, 112, 0.3);
   background:
@@ -391,26 +616,31 @@ button.rag-timeline-item:hover {
 /* Mobil uyum */
 @media (max-width: 540px) {
   .rag-sources-layout {
-    gap: 9px;
-  }
-
-  .rag-sources-layout .rag-section-head {
     gap: 8px;
   }
 
-  .rag-sources-layout .rag-section-head p {
-    max-width: 155px;
+  .rag-source-topbar {
+    padding: 5px;
   }
 
-  .rag-source-head-actions {
-    gap: 6px;
-  }
-
-  .rag-source-head-actions .rag-primary-btn,
-  .rag-source-head-actions .rag-secondary-btn {
-    min-height: 32px;
-    padding-inline: 11px;
+  .rag-source-subtab {
+    min-height: 34px;
     font-size: 10.5px;
+  }
+
+  .rag-source-floating-actions {
+    gap: 7px;
+  }
+
+  .rag-icon-action-btn {
+    width: 36px;
+    height: 32px;
+    min-width: 36px;
+    min-height: 32px;
+  }
+
+  .rag-source-count-line {
+    font-size: 10px;
   }
 
   .rag-source-card-head {

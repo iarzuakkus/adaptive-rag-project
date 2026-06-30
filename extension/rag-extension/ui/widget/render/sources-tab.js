@@ -7,16 +7,11 @@
  * - Backend çalışmıyorsa eski/local kaynak fallback'i göstermez.
  * - Kaynak kartlarını sade biçimde render eder.
  * - Kaynak detayını overlay/modal olarak değil, Kaynaklar sekmesi içinde gösterir.
+ * - Kaynaklar sekmesi içinde "Kaynaklar / Öneriler" alt sekme kabuğunu yönetir.
  *
- * Kartta gösterilen bilgiler:
- * - LLM/Backend başlığı
- * - Taranma zamanı
- * - Kısa genel özet
- * - Kaynak domaini
- *
- * Detay ekranı:
- * - source-detail.js tarafından üretilir.
- * - sources-tab.js içinde gösterilir.
+ * Öneriler ekranı:
+ * - recommendations-panel.js tarafından üretilir.
+ * - sources-tab.js sadece bu paneli bağlar.
  */
 
 (function () {
@@ -35,6 +30,7 @@
 
   let sourceViewMode = "list";
   let activeSourceDetail = null;
+  let activeSourcesSubTab = "sources";
 
   function escapeHtml(text) {
     if (window.AdaptiveRagState?.escapeHtml) {
@@ -77,6 +73,38 @@
       chrome.storage &&
       chrome.storage.local
     );
+  }
+
+  function getIconUrl(iconName) {
+    try {
+      if (
+        typeof chrome !== "undefined" &&
+        chrome.runtime &&
+        typeof chrome.runtime.getURL === "function"
+      ) {
+        return chrome.runtime.getURL(`icons/${iconName}.svg`);
+      }
+    } catch {
+      return "";
+    }
+
+    return "";
+  }
+
+  function renderIcon(iconName, className = "") {
+    const iconUrl = getIconUrl(iconName);
+
+    if (!iconUrl) {
+      return "";
+    }
+
+    return `
+      <span
+        class="rag-icon-mask ${escapeHtml(className)}"
+        style="--rag-icon-url: url('${escapeHtml(iconUrl)}');"
+        aria-hidden="true"
+      ></span>
+    `;
   }
 
   function getShortUrl(url) {
@@ -206,6 +234,7 @@
     sourcesError = "";
     sourceViewMode = "list";
     activeSourceDetail = null;
+    activeSourcesSubTab = "sources";
   }
 
   async function fetchSources({ force = false } = {}) {
@@ -282,6 +311,29 @@
     rerenderIfSourcesTabActive();
   }
 
+  function setSourcesSubTab(nextTab) {
+    const normalizedTab = String(nextTab || "").trim().toLowerCase();
+
+    if (!["sources", "recommendations"].includes(normalizedTab)) {
+      return;
+    }
+
+    activeSourcesSubTab = normalizedTab;
+    sourceViewMode = "list";
+    activeSourceDetail = null;
+
+    if (activeSourcesSubTab === "sources" && !sourcesLoaded && !sourcesLoading) {
+      fetchSources();
+      return;
+    }
+
+    rerenderIfSourcesTabActive();
+  }
+
+  function getActiveSourcesSubTab() {
+    return activeSourcesSubTab;
+  }
+
   function loadScanMode() {
     try {
       if (!hasChromeStorage()) {
@@ -341,7 +393,23 @@
     }
 
     const renderSources = Array.isArray(sourcesCache) ? sourcesCache : [];
+    const bodyHtml =
+      activeSourcesSubTab === "recommendations"
+        ? renderRecommendationsContent()
+        : renderSourcesContent(renderSources);
 
+    return `
+      <div class="rag-sources-layout">
+        ${renderSourcesHeader(renderSources.length)}
+
+        <div class="rag-source-panel">
+          ${bodyHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderSourcesContent(renderSources) {
     let bodyHtml = "";
 
     if (sourcesLoading && !sourcesLoaded) {
@@ -358,11 +426,26 @@
     }
 
     return `
-      <div class="rag-sources-layout">
-        ${renderSourcesHeader(renderSources.length)}
+      <div class="rag-source-list">
+        ${bodyHtml}
+      </div>
+    `;
+  }
 
-        <div class="rag-source-list">
-          ${bodyHtml}
+  function renderRecommendationsContent() {
+    const renderer = window.AdaptiveRagRecommendationsPanel?.renderRecommendationsPanel;
+
+    if (typeof renderer === "function") {
+      return renderer({
+        sourceCount: Array.isArray(sourcesCache) ? sourcesCache.length : 0
+      });
+    }
+
+    return `
+      <div class="rag-recommendations-panel">
+        <div class="rag-empty-state">
+          <strong>Öneriler paneli yüklenemedi.</strong>
+          <span>recommendations-panel.js dosyası yüklenmemiş olabilir.</span>
         </div>
       </div>
     `;
@@ -403,43 +486,108 @@
 
   function renderSourcesHeader(sourceCount) {
     const isManualMode = scanModeCache === "manual";
+    const isSourcesActive = activeSourcesSubTab === "sources";
+    const isRecommendationsActive = activeSourcesSubTab === "recommendations";
 
     return `
-      <div class="rag-section-head">
-        <div>
-          <h3>Kaynaklar</h3>
-          <p>
-            Taradığın sayfaları özetleriyle burada yönetebilirsin.
-          </p>
-        </div>
-
-        <div class="rag-source-head-actions">
-          ${
-            isManualMode
-              ? `
-                <button
-                  id="scanCurrentPageBtn"
-                  class="rag-primary-btn small"
-                  type="button"
-                >
-                  Sayfayı tara
-                </button>
-              `
-              : ""
-          }
+      <div class="rag-source-topbar">
+        <div class="rag-source-subtabs" role="tablist" aria-label="Kaynak alt sekmeleri">
+          <button
+            class="rag-source-subtab ${isSourcesActive ? "is-active" : ""}"
+            type="button"
+            data-source-subtab="sources"
+            aria-selected="${isSourcesActive ? "true" : "false"}"
+          >
+            ${renderIcon("source", "rag-icon-subtab")}
+            <span>Kaynaklar</span>
+          </button>
 
           <button
-            id="refreshSourcesBtn"
-            class="rag-secondary-btn small"
+            class="rag-source-subtab ${isRecommendationsActive ? "is-active" : ""}"
             type="button"
+            data-source-subtab="recommendations"
+            aria-selected="${isRecommendationsActive ? "true" : "false"}"
           >
-            Yenile
+            ${renderIcon("recommendation", "rag-icon-subtab")}
+            <span>Öneriler</span>
           </button>
         </div>
       </div>
 
+      ${
+        isSourcesActive
+          ? renderSourcesToolbarButtons(isManualMode)
+          : renderRecommendationToolbarButtons()
+      }
+
       <div class="rag-source-count-line">
-        ${sourceCount} kaynak · ${isManualMode ? "Elle tarama" : "Otomatik tarama"}
+        ${
+          isSourcesActive
+            ? `${sourceCount} kaynak · ${isManualMode ? "Elle tarama" : "Otomatik tarama"}`
+            : "Öneriler · Araştırma modu"
+        }
+      </div>
+    `;
+  }
+
+  function renderSourcesToolbarButtons(isManualMode) {
+    return `
+      <div class="rag-source-floating-actions">
+        ${
+          isManualMode
+            ? `
+              <button
+                id="scanCurrentPageBtn"
+                class="rag-icon-action-btn"
+                type="button"
+                title="Sayfayı tara"
+                aria-label="Sayfayı tara"
+                data-icon-only="true"
+              >
+                ${renderIcon("scan", "rag-icon-action")}
+              </button>
+            `
+            : ""
+        }
+
+        <button
+          id="refreshSourcesBtn"
+          class="rag-icon-action-btn"
+          type="button"
+          title="Yenile"
+          aria-label="Yenile"
+          data-icon-only="true"
+        >
+          ${renderIcon("refresh", "rag-icon-action")}
+        </button>
+      </div>
+    `;
+  }
+
+  function renderRecommendationToolbarButtons() {
+    return `
+      <div class="rag-source-floating-actions">
+        <button
+          id="generateRecommendationsBtn"
+          class="rag-icon-action-btn"
+          type="button"
+          title="Öneri üret"
+          aria-label="Öneri üret"
+          data-icon-only="true"
+        >
+          ${renderIcon("recommendation", "rag-icon-action")}
+        </button>
+
+        <button
+          id="refreshRecommendationsBtn"
+          class="rag-icon-action-btn"
+          type="button"
+          title="Önerileri yenile"
+          aria-label="Önerileri yenile"
+          data-icon-only="true"
+        >
+          ${renderIcon("refresh", "rag-icon-action")}
+        </button>
       </div>
     `;
   }
@@ -482,7 +630,7 @@
                     type="button"
                     data-source-id="${escapeHtml(sourceId)}"
                   >
-                    Detay
+                    <span>Detay</span>
                   </button>
                 `
                 : ""
@@ -492,11 +640,12 @@
               url
                 ? `
                   <button
-                    class="rag-secondary-btn rag-open-source-btn"
+                    class="rag-secondary-btn rag-open-source-btn rag-icon-btn"
                     type="button"
                     data-url="${escapeHtml(url)}"
                   >
-                    Siteye git
+                    ${renderIcon("external-link", "rag-icon-button")}
+                    <span>Siteye git</span>
                   </button>
                 `
                 : ""
@@ -506,11 +655,12 @@
               sourceId
                 ? `
                   <button
-                    class="rag-danger-btn rag-delete-source-btn"
+                    class="rag-danger-btn rag-delete-source-btn rag-icon-btn"
                     type="button"
                     data-source-id="${escapeHtml(sourceId)}"
                   >
-                    Sil
+                    ${renderIcon("rubbish", "rag-icon-button")}
+                    <span>Sil</span>
                   </button>
                 `
                 : ""
@@ -726,6 +876,9 @@
     openSourceDetail,
     closeSourceDetail,
     getActiveSourceDetail,
+
+    setSourcesSubTab,
+    getActiveSourcesSubTab,
 
     getSourcesCache
   };

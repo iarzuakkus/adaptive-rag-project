@@ -35,7 +35,14 @@
         "assets/logo.svg",
         "assets/logo64.png",
         "assets/logo128.png",
-        "assets/fonts/albertusnova.otf"
+        "assets/fonts/albertusnova.otf",
+
+        "icons/source.svg",
+        "icons/recommendation.svg",
+        "icons/scan.svg",
+        "icons/refresh.svg",
+        "icons/external-link.svg",
+        "icons/rubbish.svg"
       ],
       "matches": [
         "<all_urls>"
@@ -76,6 +83,7 @@
 
         "ui/widget/render/widget-shell.js",
         "ui/widget/render/chat-tab.js",
+        "ui/widget/render/recommendations-panel.js",
         "ui/widget/render/sources-tab.js",
         "ui/widget/render/source-detail.js",
         "ui/widget/render/notes-tab.js",
@@ -90,6 +98,7 @@
         "ui/widget/styles/widget-cards.css",
         "ui/widget/styles/widget-chat.css",
         "ui/widget/styles/widget-sources.css",
+        "ui/widget/styles/widget-recommendations.css",
         "ui/widget/styles/widget-source-detail.css",
         "ui/widget/styles/widget-notes.css",
         "ui/widget/styles/widget-effects.css"
