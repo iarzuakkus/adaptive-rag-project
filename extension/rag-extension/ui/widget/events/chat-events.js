@@ -16,6 +16,8 @@
  * - Session yapısı bozulmaz.
  * - addMessageToSession yine role + string content ile çağrılır.
  * - Chunk bilgileri şimdilik window.AdaptiveRagLastChatChunks içinde tutulur.
+ * - Chat cevabına kaynak listesi veya URL eklenmez.
+ * - Kaynaklar backend response içinde structured olarak kalır.
  */
 
 (function () {
@@ -134,49 +136,6 @@
     });
   }
 
-  function buildSourcesText(sources) {
-    if (!Array.isArray(sources) || sources.length === 0) {
-      return "";
-    }
-
-    const seen = new Set();
-    const lines = [];
-
-    sources.forEach((source, index) => {
-      const title =
-        source.title ||
-        source.page_title ||
-        source.source_title ||
-        `Kaynak ${index + 1}`;
-
-      const url =
-        source.url ||
-        source.page_url ||
-        source.source_url ||
-        "";
-
-      const key = `${title}__${url}`;
-
-      if (seen.has(key)) {
-        return;
-      }
-
-      seen.add(key);
-
-      if (url) {
-        lines.push(`- ${title}\n  ${url}`);
-      } else {
-        lines.push(`- ${title}`);
-      }
-    });
-
-    if (!lines.length) {
-      return "";
-    }
-
-    return `\n\nKullanılan kaynaklar:\n${lines.join("\n")}`;
-  }
-
   function clearLastChatHighlightData() {
     window.AdaptiveRagLastChatChunks = [];
     window.AdaptiveRagLastChatResult = null;
@@ -197,7 +156,11 @@
       return null;
     }
 
-    return chunks[0];
+    const primaryChunk = chunks.find((chunk) => {
+      return chunk?.is_primary_chunk === true;
+    });
+
+    return primaryChunk || chunks[0];
   }
 
   function saveLastChatHighlightData(result, question, options = {}) {
@@ -370,20 +333,16 @@
       return "Backend cevap döndürmedi.";
     }
 
-    const sourcesText = buildSourcesText(result.sources || []);
-
     if (result.status && result.status !== "success") {
       const answer = result.answer || "Cevap üretilirken bir sorun oluştu.";
       const errorText = result.error
         ? `\n\nTeknik hata:\n${result.error}`
         : "";
 
-      return `${answer}${errorText}${sourcesText}`;
+      return `${answer}${errorText}`;
     }
 
-    const answer = result.answer || "Cevap üretilemedi.";
-
-    return `${answer}${sourcesText}`;
+    return result.answer || "Cevap üretilemedi.";
   }
 
   function formatSourceNavigationAnswer(result) {

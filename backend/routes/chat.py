@@ -4,7 +4,7 @@ Dosya: routes/chat.py
 Görev:
 - Extension tarafındaki chat ekranından gelen soruları alır.
 - RAG pipeline üzerinden cevap üretir.
-- Cevapla birlikte kullanılan kaynakları ve chunk bilgilerini frontend'e döndürür.
+- Cevapla birlikte kullanılan kaynakları frontend'e döndürür.
 - Extension tarafından otomatik gönderilen aktif sayfa bağlamını alır:
   page_url, page_title, scope.
 """
@@ -45,28 +45,21 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    # Backend işlemi başarılı mı?
-    success: bool = True
-
-    # Kullanıcıya gösterilecek cevap metni.
     answer: str
 
-    # Cevap tipi:
-    # short | detailed | summary | comparison | unknown
-    answer_type: str = "short"
+    # Frontend chat cevabında gösterilecek sade kaynak listesi.
+    sources: list[dict[str, Any]]
 
-    # Frontend chat cevabında ayrı kullanılabilecek kaynak listesi.
-    sources: list[dict[str, Any]] = Field(default_factory=list)
+    # Retriever'dan gelen tam chunk listesi.
+    # Debug, notlara aktarma ve detaylı kaynak işlemleri için tutulur.
+    chunks: list[dict[str, Any]] = []
 
-    # RAG cevabında kullanılan chunk listesi.
-    # Sayfa üzerinde highlight işlemi için en kritik alan burasıdır.
-    chunks: list[dict[str, Any]] = Field(default_factory=list)
+    # Frontend'in ileride çalıştırabileceği aksiyonlar:
+    # show_source, highlight_chunk vb.
+    actions: list[dict[str, Any]] = []
 
-    # İleride frontend'in kullanabileceği aksiyonlar.
-    actions: list[dict[str, Any]] = Field(default_factory=list)
-
-    source_count: int = 0
-    status: str = "success"
+    source_count: int
+    status: str
     error: Optional[str] = None
 
 
