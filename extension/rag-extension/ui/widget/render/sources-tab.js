@@ -20,6 +20,8 @@
   }
 
   const SCAN_SETTINGS_KEY = "adaptive_rag_scan_settings";
+  const SESSION_ENABLED_KEY = "adaptive_rag_session_enabled";
+  const ACTIVE_SESSION_KEY = "adaptive_rag_active_session";
 
   let scanModeCache = "manual";
 
@@ -31,6 +33,9 @@
   let sourceViewMode = "list";
   let activeSourceDetail = null;
   let activeSourcesSubTab = "sources";
+
+  let activeSessionIdCache = "";
+  let activeSessionStartedAtCache = "";
 
   function escapeHtml(text) {
     if (window.AdaptiveRagState?.escapeHtml) {
@@ -186,6 +191,144 @@
     return window.AdaptiveRagState?.getActiveTab?.() || "";
   }
 
+  function isSessionActiveSync() {
+    if (window.AdaptiveRagState?.isSessionActive) {
+      return window.AdaptiveRagState.isSessionActive();
+    }
+
+    return Boolean(activeSessionIdCache);
+  }
+
+  function getStorageValues(keys) {
+    return new Promise((resolve) => {
+      try {
+        if (!hasChromeStorage()) {
+          resolve({});
+          return;
+        }
+
+        chrome.storage.local.get(keys, (result) => {
+          if (chrome.runtime?.lastError) {
+            resolve({});
+            return;
+          }
+
+          resolve(result || {});
+        });
+      } catch {
+        resolve({});
+      }
+    });
+  }
+
+  async function getCurrentSessionContext() {
+    try {
+      if (window.AdaptiveRagSessionStore?.getActiveSession) {
+        const session = await window.AdaptiveRagSessionStore.getActiveSession();
+
+        if (!session?.id) {
+          return {
+            active: false,
+            id: "",
+            startedAt: ""
+          };
+        }
+
+        return {
+          active: true,
+          id: session.id,
+          startedAt: session.startedAt || ""
+        };
+      }
+
+      const values = await getStorageValues([
+        SESSION_ENABLED_KEY,
+        ACTIVE_SESSION_KEY
+      ]);
+
+      const session = values[ACTIVE_SESSION_KEY];
+      const enabled = values[SESSION_ENABLED_KEY] === true;
+
+      if (!enabled || !session?.id) {
+        return {
+          active: false,
+          id: "",
+          startedAt: ""
+        };
+      }
+
+      return {
+        active: true,
+        id: session.id,
+        startedAt: session.startedAt || ""
+      };
+    } catch {
+      return {
+        active: false,
+        id: "",
+        startedAt: ""
+      };
+    }
+  }
+
+  function applySessionContext(sessionContext) {
+    const nextId = sessionContext?.active ? sessionContext.id || "" : "";
+    const nextStartedAt = sessionContext?.active ? sessionContext.startedAt || "" : "";
+
+    const changed = activeSessionIdCache !== nextId;
+
+    activeSessionIdCache = nextId;
+    activeSessionStartedAtCache = nextStartedAt;
+
+    return changed;
+  }
+
+  function getSourceSessionId(source) {
+    return (
+      source?.session_id ||
+      source?.sessionId ||
+      source?.session?.id ||
+      source?.metadata?.session_id ||
+      source?.metadata?.sessionId ||
+      ""
+    );
+  }
+
+  function isSourceInActiveSession(source) {
+    if (!activeSessionIdCache) {
+      return false;
+    }
+
+    const sourceSessionId = getSourceSessionId(source);
+
+    if (sourceSessionId) {
+      return sourceSessionId === activeSessionIdCache;
+    }
+
+    const sessionStartedAt = Date.parse(activeSessionStartedAtCache || "");
+
+    if (!sessionStartedAt) {
+      return true;
+    }
+
+    const sourceDate = getSourceDate(source);
+    const sourceTime = Date.parse(sourceDate || "");
+
+    if (!sourceTime) {
+      return false;
+    }
+
+    return sourceTime >= sessionStartedAt - 2000;
+  }
+
+  function filterSourcesForActiveSession(sources) {
+    if (!Array.isArray(sources)) {
+      return [];
+    }
+
+    return sources.filter(isSourceInActiveSession);
+  }
+
   function rerenderIfSourcesTabActive() {
     const activeTab = getActiveTab();
 
@@ -242,6 +385,22 @@
       return;
     }
 
+    const sessionContext = await getCurrentSessionContext();
+    const sessionChanged = applySessionContext(sessionContext);
+
+    if (!sessionContext.active) {
+      clearBackendSourceViewCache();
+      rerenderIfSourcesTabActive();
+      return;
+    }
+
+    if (sessionChanged) {
+      sourcesCache = [];
+      sourcesLoaded = false;
+      sourceViewMode = "list";
+      activeSourceDetail = null;
+    }
+
     if (sourcesLoaded && !force) {
       return;
     }
@@ -277,7 +436,7 @@
         ? data
         : [];
 
-    sourcesCache = nextSources;
+    sourcesCache = filterSourcesForActiveSession(nextSources);
     sourcesLoaded = true;
     sourcesLoading = false;
     sourcesError = "";
@@ -371,19 +530,41 @@
         return;
       }
 
-      if (!changes[SCAN_SETTINGS_KEY]) {
-        return;
+      if (changes[SESSION_ENABLED_KEY] || changes[ACTIVE_SESSION_KEY]) {
+        const nextEnabled = changes[SESSION_ENABLED_KEY]?.newValue;
+        const nextSession = changes[ACTIVE_SESSION_KEY]?.newValue;
+
+        if (nextEnabled === false || !nextSession?.id) {
+          clearBackendSourceViewCache();
+          rerenderIfSourcesTabActive();
+          return;
+        }
+
+        if (nextSession.id !== activeSessionIdCache) {
+          activeSessionIdCache = nextSession.id;
+          activeSessionStartedAtCache = nextSession.startedAt || "";
+          clearBackendSourceViewCache();
+          rerenderIfSourcesTabActive();
+          return;
+        }
       }
 
-      const nextSettings = changes[SCAN_SETTINGS_KEY].newValue;
+      if (changes[SCAN_SETTINGS_KEY]) {
+        const nextSettings = changes[SCAN_SETTINGS_KEY].newValue;
 
-      scanModeCache = nextSettings?.scanMode === "auto" ? "auto" : "manual";
+        scanModeCache = nextSettings?.scanMode === "auto" ? "auto" : "manual";
 
-      rerenderIfSourcesTabActive();
+        rerenderIfSourcesTabActive();
+      }
     });
   }
 
   function renderSourcesTab() {
+    if (!isSessionActiveSync()) {
+      clearBackendSourceViewCache();
+      return renderSourcesLayout(renderSourcesHeader(0), renderSessionClosedSources());
+    }
+
     if (sourceViewMode === "detail" && activeSourceDetail) {
       return renderInlineSourceDetail();
     }
@@ -398,12 +579,27 @@
         ? renderRecommendationsContent()
         : renderSourcesContent(renderSources);
 
+    return renderSourcesLayout(renderSourcesHeader(renderSources.length), bodyHtml);
+  }
+
+  function renderSourcesLayout(headerHtml, bodyHtml) {
     return `
       <div class="rag-sources-layout">
-        ${renderSourcesHeader(renderSources.length)}
+        ${headerHtml}
 
         <div class="rag-source-panel">
           ${bodyHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderSessionClosedSources() {
+    return `
+      <div class="rag-source-list">
+        <div class="rag-empty-state">
+          <strong>Oturum kapalı.</strong>
+          <span>Kaynakları görmek için oturumu aç.</span>
         </div>
       </div>
     `;
@@ -855,6 +1051,10 @@
   }
 
   function getSourcesCache() {
+    if (!isSessionActiveSync()) {
+      return [];
+    }
+
     return [...sourcesCache];
   }
 

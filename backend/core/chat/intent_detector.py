@@ -3,11 +3,13 @@ Dosya: core/chat/intent_detector.py
 
 Görev:
 - Kullanıcının chat mesajındaki niyeti LLM ile sınıflandırır.
-- Normal bilgi sorusu ile kaynak gösterme / sayfada gösterme isteğini ayırır.
+- Normal bilgi sorusu, kaynak gösterme / sayfada gösterme isteği
+  ve öneri üretme isteğini ayırır.
 
 Desteklenen intent değerleri:
 - normal_chat
 - source_navigation
+- recommendation_request
 
 Not:
 - Bu dosya retriever çağırmaz.
@@ -29,12 +31,14 @@ DEFAULT_CHAT_INTENT = {
     "intent": "normal_chat",
     "confidence": 0.0,
     "reason": "intent_detection_skipped",
+    "action": None,
 }
 
 
 VALID_CHAT_INTENTS = {
     "normal_chat",
     "source_navigation",
+    "recommendation_request",
 }
 
 
@@ -71,6 +75,25 @@ def extract_json_from_text(text: str) -> dict:
         return {}
 
 
+def build_recommendation_action(parsed_action: dict | None = None) -> dict:
+    """
+    recommendation_request intent'i için frontend'in anlayacağı action yapısını üretir.
+    LLM eksik veya hatalı action döndürse bile güvenli varsayılan action döndürülür.
+    """
+
+    action = parsed_action if isinstance(parsed_action, dict) else {}
+
+    return {
+        "type": "generate_recommendations",
+        "reason": str(
+            action.get("reason") or "chat_natural_language_request"
+        ).strip(),
+        "mode": str(action.get("mode") or "refresh").strip().lower(),
+        "open_panel": action.get("open_panel", True) is not False,
+        "show_in_chat": action.get("show_in_chat", True) is not False,
+    }
+
+
 def normalize_intent_result(parsed: dict) -> dict:
     """
     LLM'den gelen ham JSON intent cevabını güvenli hale getirir.
@@ -93,10 +116,16 @@ def normalize_intent_result(parsed: dict) -> dict:
 
     reason = str(parsed.get("reason") or "").strip()
 
+    action = None
+
+    if intent == "recommendation_request":
+        action = build_recommendation_action(parsed.get("action"))
+
     return {
         "intent": intent,
         "confidence": confidence,
         "reason": reason,
+        "action": action,
     }
 
 
@@ -113,7 +142,23 @@ def detect_chat_intent(
     {
         "intent": "source_navigation",
         "confidence": 0.92,
-        "reason": "Kullanıcı önceki cevabın kaynağını sayfada görmek istiyor."
+        "reason": "Kullanıcı önceki cevabın kaynağını sayfada görmek istiyor.",
+        "action": null
+    }
+
+    veya:
+
+    {
+        "intent": "recommendation_request",
+        "confidence": 0.92,
+        "reason": "Kullanıcı mevcut kaynaklara göre öneri istiyor.",
+        "action": {
+            "type": "generate_recommendations",
+            "reason": "chat_natural_language_request",
+            "mode": "refresh",
+            "open_panel": true,
+            "show_in_chat": true
+        }
     }
 
     Not:
@@ -137,7 +182,7 @@ def detect_chat_intent(
             prompt=prompt,
             system_instruction=CHAT_INTENT_SYSTEM_INSTRUCTION,
             temperature=0.0,
-            max_output_tokens=250,
+            max_output_tokens=350,
         )
 
         parsed = extract_json_from_text(raw_answer)
@@ -148,6 +193,7 @@ def detect_chat_intent(
             "intent": result.get("intent"),
             "confidence": result.get("confidence"),
             "reason": result.get("reason"),
+            "action": result.get("action"),
         })
 
         return result
@@ -176,3 +222,24 @@ def is_source_navigation_intent(
         confidence = 0.0
 
     return intent == "source_navigation" and confidence >= min_confidence
+
+
+def is_recommendation_request_intent(
+    intent_result: dict,
+    min_confidence: float = 0.55,
+) -> bool:
+    """
+    Intent sonucunun öneri üretme isteği olup olmadığını döndürür.
+    """
+
+    if not isinstance(intent_result, dict):
+        return False
+
+    intent = str(intent_result.get("intent") or "").strip().lower()
+
+    try:
+        confidence = float(intent_result.get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+
+    return intent == "recommendation_request" and confidence >= min_confidence

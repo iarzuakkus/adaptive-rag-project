@@ -10,12 +10,16 @@
  * - Kaynak detayını Kaynaklar sekmesinin içinde açar.
  * - Kaynak kartlarındaki "Siteye git" butonlarını çalıştırır.
  * - "Sil" butonuyla kaynağı backend üzerinden siler.
+ * - Başarılı kaynak taramasından sonra önerileri otomatik günceller.
+ *
+ * Oturum kuralı:
+ * - Oturum kapalıysa kaynak aksiyonları çalışmaz.
+ * - Oturum kapalıyken bu dosya yeni session oluşturmaz.
  *
  * Not:
  * - Öneriler paneline ait eventler bu dosyada değildir.
- * - Öneri üretme, öneri yenileme, öneri siteye gitme ve öneri tarama işlemleri recommendation-events.js içinde yönetilir.
+ * - İlk öneri butonu POST, ikinci öneri butonu GET akışı recommendation-events.js içindedir.
  * - Kaynakların gerçek sahibi backend'dir.
- * - İkon-only butonlarda yazılı loading basılmaz; spinner / tik / hata ikonu kullanılır.
  */
 
 (function () {
@@ -23,10 +27,14 @@
     return;
   }
 
+  const SESSION_ENABLED_KEY = "adaptive_rag_session_enabled";
+
   let lastRenderActiveTab = null;
 
   function bindSourceEvents(renderActiveTab) {
     lastRenderActiveTab = renderActiveTab;
+
+    bindSessionStorageWatcher();
 
     if (document.body.dataset.ragSourceEventsBound === "1") {
       return;
@@ -81,7 +89,7 @@
 
       if (openButton) {
         event.preventDefault();
-        handleOpenUrlButton(openButton);
+        await handleOpenUrlButton(openButton);
         return;
       }
 
@@ -92,6 +100,137 @@
         await handleDeleteSource(deleteButton, lastRenderActiveTab);
       }
     });
+  }
+
+  function bindSessionStorageWatcher() {
+    try {
+      if (
+        typeof chrome === "undefined" ||
+        !chrome.storage ||
+        !chrome.storage.onChanged ||
+        document.body.dataset.ragSourceSessionWatcherBound === "1"
+      ) {
+        return;
+      }
+
+      document.body.dataset.ragSourceSessionWatcherBound = "1";
+
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName !== "local") {
+          return;
+        }
+
+        if (!changes[SESSION_ENABLED_KEY]) {
+          return;
+        }
+
+        if (changes[SESSION_ENABLED_KEY].newValue === false) {
+          resetSourceSideUi();
+        }
+      });
+    } catch (error) {
+      console.warn("[SOURCE EVENTS] Session watcher bağlanamadı:", error);
+    }
+  }
+
+  function resetSourceSideUi() {
+    if (window.AdaptiveRagRecommendationStore?.clearState) {
+      window.AdaptiveRagRecommendationStore.clearState({
+        render: false
+      });
+    }
+
+    if (window.AdaptiveRagRecommendationEvents?.clearPendingRecommendationScan) {
+      window.AdaptiveRagRecommendationEvents.clearPendingRecommendationScan();
+    }
+
+    if (window.AdaptiveRagScanSettingsStore?.clearScanHistory) {
+      window.AdaptiveRagScanSettingsStore.clearScanHistory();
+    }
+
+    if (window.AdaptiveRagSourcesTab?.clearSourcesCache) {
+      window.AdaptiveRagSourcesTab.clearSourcesCache();
+    }
+
+    if (window.AdaptiveRagSourcesTab?.closeSourceDetail) {
+      window.AdaptiveRagSourcesTab.closeSourceDetail();
+    }
+
+    if (window.AdaptiveRagSourcesTab?.setSourcesSubTab) {
+      window.AdaptiveRagSourcesTab.setSourcesSubTab("sources");
+    }
+
+    window.dispatchEvent(new CustomEvent("adaptive-rag-source-session-cleared"));
+    renderSourcesTabFallback();
+  }
+
+  function storageGet(key) {
+    return new Promise((resolve) => {
+      try {
+        if (
+          typeof chrome === "undefined" ||
+          !chrome.storage ||
+          !chrome.storage.local
+        ) {
+          resolve(null);
+          return;
+        }
+
+        chrome.storage.local.get([key], (result) => {
+          if (chrome.runtime?.lastError) {
+            resolve(null);
+            return;
+          }
+
+          resolve(result?.[key] ?? null);
+        });
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  async function isSourceSessionActive() {
+    try {
+      const enabled = await storageGet(SESSION_ENABLED_KEY);
+
+      if (enabled !== true) {
+        return false;
+      }
+
+      if (window.AdaptiveRagSessionStore?.getActiveSession) {
+        const session = await window.AdaptiveRagSessionStore.getActiveSession();
+        return Boolean(session?.id);
+      }
+
+      if (window.AdaptiveRagState?.isSessionActive) {
+        return window.AdaptiveRagState.isSessionActive();
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function guardSourceSession(options = {}) {
+    const isActive = await isSourceSessionActive();
+
+    if (isActive) {
+      return true;
+    }
+
+    if (window.AdaptiveRagRecommendationStore?.clearState) {
+      window.AdaptiveRagRecommendationStore.clearState({
+        render: false
+      });
+    }
+
+    if (options.alert === true) {
+      alert("Önce oturumu açmalısın.");
+    }
+
+    return false;
   }
 
   function sendBackgroundMessage(message) {
@@ -195,9 +334,30 @@
     await window.AdaptiveRagScanSettingsStore.markUrlScanned(window.location.href);
   }
 
-  async function refreshSourcesTab(renderActiveTab) {
+  async function unmarkDeletedSourceUrl(url) {
+    if (!url || !window.AdaptiveRagScanSettingsStore) {
+      return;
+    }
+
+    const store = window.AdaptiveRagScanSettingsStore;
+
+    if (typeof store.unmarkUrl === "function") {
+      await store.unmarkUrl(url);
+      return;
+    }
+
+    if (typeof store.unmarkUrlScanned === "function") {
+      await store.unmarkUrlScanned(url);
+    }
+
+    if (typeof store.unmarkUrlDismissed === "function") {
+      await store.unmarkUrlDismissed(url);
+    }
+  }
+
+  async function refreshSourcesTab(renderActiveTab, options = {}) {
     if (window.AdaptiveRagSourcesTab?.refreshSources) {
-      await window.AdaptiveRagSourcesTab.refreshSources();
+      await window.AdaptiveRagSourcesTab.refreshSources(options);
       return;
     }
 
@@ -208,6 +368,41 @@
 
     if (window.AdaptiveRagWidget?.renderActiveTab) {
       await window.AdaptiveRagWidget.renderActiveTab();
+    }
+  }
+
+  async function refreshRecommendationsAfterSourceScan(options = {}) {
+    try {
+      const recommendationEvents = window.AdaptiveRagRecommendationEvents;
+
+      if (
+        !recommendationEvents ||
+        typeof recommendationEvents.generateRecommendationsAfterSourceChange !== "function"
+      ) {
+        console.warn(
+          "[SOURCE EVENTS] Otomatik öneri güncelleme fonksiyonu bulunamadı."
+        );
+
+        return null;
+      }
+
+      return await recommendationEvents.generateRecommendationsAfterSourceChange({
+        silent: false,
+        refreshSources: false,
+        reason: options.reason || "auto_recommend_after_source_change",
+        focusCurrentPage: options.focusCurrentPage === true,
+        clearIfNoSources: options.clearIfNoSources === true,
+        preserveIfEmpty: options.preserveIfEmpty === true,
+        skipAutoCooldown: options.skipAutoCooldown === true,
+        forceReloadSources: options.forceReloadSources === true
+      });
+    } catch (error) {
+      console.warn(
+        "[SOURCE EVENTS] Kaynak sonrası otomatik öneri güncelleme başarısız:",
+        error
+      );
+
+      return null;
     }
   }
 
@@ -331,7 +526,9 @@
       refreshButton.dataset.loading = "1";
       setButtonLoading(refreshButton, true, "Yenileniyor...");
 
-      await refreshSourcesTab(renderActiveTab);
+      await refreshSourcesTab(renderActiveTab, {
+        skipRecommendationRefresh: true
+      });
 
       if (isIconOnlyButton(refreshButton)) {
         setIconButtonState(refreshButton, "success");
@@ -406,7 +603,7 @@
     }
   }
 
-  function handleOpenUrlButton(button) {
+  async function handleOpenUrlButton(button) {
     const url = button.dataset.url;
 
     if (!url) {
@@ -414,6 +611,49 @@
     }
 
     window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  function resolveDeletedSourceUrl(deleteButton, response) {
+    const fromButton =
+      deleteButton.dataset.url ||
+      deleteButton.dataset.sourceUrl ||
+      "";
+
+    if (fromButton) {
+      return fromButton;
+    }
+
+    const card = deleteButton.closest(
+      "[data-source-url], [data-url], .rag-source-card, article"
+    );
+
+    const fromCard =
+      card?.dataset?.sourceUrl ||
+      card?.dataset?.url ||
+      "";
+
+    if (fromCard) {
+      return fromCard;
+    }
+
+    const openButton = card?.querySelector?.(".rag-open-source-btn");
+    const fromOpenButton = openButton?.dataset?.url || "";
+
+    if (fromOpenButton) {
+      return fromOpenButton;
+    }
+
+    const data = response?.data || {};
+
+    return (
+      data.url ||
+      data.source_url ||
+      data.page_url ||
+      data.deleted_url ||
+      data.source?.url ||
+      data.source?.source_url ||
+      ""
+    );
   }
 
   async function handleDeleteSource(deleteButton, renderActiveTab) {
@@ -447,9 +687,25 @@
         throw new Error(response?.message || "Kaynak silinemedi.");
       }
 
-      console.log("[SOURCE EVENTS] Kaynak silindi:", response.data);
+      const deletedSourceUrl = resolveDeletedSourceUrl(deleteButton, response);
 
-      await refreshSourcesTab(renderActiveTab);
+      await unmarkDeletedSourceUrl(deletedSourceUrl);
+
+      console.log("[SOURCE EVENTS] Kaynak silindi:", {
+        response: response.data,
+        deletedSourceUrl
+      });
+
+      await refreshSourcesTab(renderActiveTab, {
+        skipRecommendationRefresh: true
+      });
+
+      await refreshRecommendationsAfterSourceScan({
+        reason: "auto_recommend_after_delete",
+        focusCurrentPage: false,
+        clearIfNoSources: true,
+        preserveIfEmpty: false
+      });
     } catch (error) {
       console.error("[SOURCE EVENTS] Kaynak silme hatası:", error);
       alert(error.message || "Kaynak silinirken hata oluştu.");
@@ -509,7 +765,23 @@
       setIconButtonState(scanButton, "success");
       await wait(650);
 
-      await refreshSourcesTab(renderActiveTab);
+      await refreshSourcesTab(renderActiveTab, {
+        skipRecommendationRefresh: true
+      });
+
+      await wait(350);
+
+      await refreshSourcesTab(renderActiveTab, {
+        skipRecommendationRefresh: true
+      });
+
+      await refreshRecommendationsAfterSourceScan({
+        reason: "auto_recommend_after_scan",
+        focusCurrentPage: false,
+        preserveIfEmpty: true,
+        skipAutoCooldown: true,
+        forceReloadSources: true
+      });
     } catch (error) {
       console.error("[SOURCE EVENTS] Sayfa tarama hatası:", error);
 

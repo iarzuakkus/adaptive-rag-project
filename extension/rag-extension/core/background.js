@@ -105,6 +105,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     GET_CHUNK_DETAIL: () =>
       backend.getChunkDetail(getSourceId(request), getChunkId(request)),
 
+    GET_RECOMMENDATIONS: () =>
+      callBackendMethod(
+        backend,
+        "getRecommendations",
+        getPayload(request)
+      ),
+
     GENERATE_RECOMMENDATIONS: () =>
       callBackendMethod(
         backend,
@@ -115,10 +122,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     REFRESH_RECOMMENDATIONS: () =>
       callBackendMethod(
         backend,
+        "getRecommendations",
+        getPayload(request)
+      ),
+
+    EXPAND_RECOMMENDATIONS: () =>
+      callBackendMethod(
+        backend,
         "generateRecommendations",
         {
           ...getPayload(request),
-          force: true
+          force: true,
+          mode: "expand",
+          generation_mode: "expand"
         }
       )
   };

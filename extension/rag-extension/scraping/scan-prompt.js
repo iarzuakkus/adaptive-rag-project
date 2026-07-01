@@ -5,6 +5,7 @@
  * - Manuel tarama modunda sağ yanda "Bu sayfayı tara?" kartını gösterir.
  * - Kart üzerindeki "Sayfayı tara" butonu ile content.js içindeki tarama akışını başlatır.
  * - Kart üzerindeki çarpı butonu ile kartı kapatır.
+ * - Tarama başarılı olursa kaynak listesini yeniler ve önerileri otomatik tetikler.
  */
 
 (function () {
@@ -132,6 +133,12 @@
       .replaceAll("'", "&#039;");
   }
 
+  function wait(ms) {
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
+  }
+
   function getShortTitle() {
     const title = document.title || "Başlıksız sayfa";
 
@@ -144,6 +151,66 @@
 
   function hideScanPrompt() {
     document.getElementById(PROMPT_ID)?.remove();
+  }
+
+  async function markCurrentUrlAsScanned() {
+    try {
+      if (!window.AdaptiveRagScanSettingsStore?.markUrlScanned) {
+        return;
+      }
+
+      await window.AdaptiveRagScanSettingsStore.markUrlScanned(window.location.href);
+    } catch (error) {
+      console.warn("[SCAN PROMPT] URL tarandı olarak işaretlenemedi:", error);
+    }
+  }
+
+  async function refreshSourcesAfterPromptScan() {
+    try {
+      if (!window.AdaptiveRagSourcesTab?.refreshSources) {
+        return;
+      }
+
+      await window.AdaptiveRagSourcesTab.refreshSources({
+        skipRecommendationRefresh: true
+      });
+    } catch (error) {
+      console.warn("[SCAN PROMPT] Kaynak listesi yenilenemedi:", error);
+    }
+  }
+
+  async function generateRecommendationsAfterPromptScan() {
+    try {
+      const recommendationEvents = window.AdaptiveRagRecommendationEvents;
+
+      if (
+        !recommendationEvents ||
+        typeof recommendationEvents.generateRecommendationsAfterSourceChange !== "function"
+      ) {
+        console.warn("[SCAN PROMPT] Öneri event modülü bulunamadı.");
+        return;
+      }
+
+      await recommendationEvents.generateRecommendationsAfterSourceChange({
+        reason: "auto_recommend_after_scan_prompt",
+        focusCurrentPage: false,
+        preserveIfEmpty: true,
+        skipAutoCooldown: true,
+        forceReloadSources: true
+      });
+    } catch (error) {
+      console.warn("[SCAN PROMPT] Tarama sonrası öneri üretimi başarısız:", error);
+    }
+  }
+
+  async function runAfterSuccessfulPageScan() {
+    await markCurrentUrlAsScanned();
+
+    await refreshSourcesAfterPromptScan();
+
+    await wait(350);
+
+    await generateRecommendationsAfterPromptScan();
   }
 
   function showScanPrompt(options = {}) {
@@ -159,7 +226,7 @@
       <div class="rag-scan-prompt-inner">
         <div class="rag-scan-prompt-top">
           <div>
-            <span class="rag-scan-prompt-label">Adaptive RAG</span>
+            <span class="rag-scan-prompt-label">MemorAI</span>
 
             <h3 class="rag-scan-prompt-title">
               Bu sayfayı tara?
@@ -222,6 +289,12 @@
           await onScan();
         }
 
+        if (status) {
+          status.textContent = "Kaynak listesi ve öneriler güncelleniyor.";
+        }
+
+        await runAfterSuccessfulPageScan();
+
         scanButton.textContent = "Tarandı";
 
         if (status) {
@@ -246,6 +319,7 @@
     __moduleName: "scan-prompt",
 
     showScanPrompt,
-    hideScanPrompt
+    hideScanPrompt,
+    runAfterSuccessfulPageScan
   };
 })();

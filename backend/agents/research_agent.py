@@ -5,7 +5,8 @@ Görev:
 - Taranan kaynaklardan LLM destekli araştırma önerileri üretir.
 - Kaynak bağlamını prompt haline getirir.
 - LLM'den 3-5 adet yapılandırılmış öneri ister.
-- Dönen cevabı JSON olarak ayrıştırır ve normalize eder.
+- Dönen cevabı JSON olarak ayrıştırır.
+- Normalize işlemini services/research/recommendation_normalizer.py modülüne bırakır.
 
 Not:
 - Bu dosya endpoint değildir.
@@ -16,24 +17,17 @@ Not:
 from __future__ import annotations
 
 from typing import Any
+import inspect
 import json
 import re
-import uuid
+
+from services.research.recommendation_normalizer import normalize_recommendations
+from services.research.url_filters import clean_text, safe_list
 
 
 DEFAULT_LIMIT = 5
 MIN_LIMIT = 3
 MAX_LIMIT = 5
-
-
-def clean_text(value: Any, max_length: int | None = None) -> str:
-    text = str(value or "").strip()
-    text = re.sub(r"\s+", " ", text)
-
-    if max_length and len(text) > max_length:
-        return text[:max_length].strip() + "..."
-
-    return text
 
 
 def normalize_limit(limit: int | None) -> int:
@@ -45,8 +39,13 @@ def normalize_limit(limit: int | None) -> int:
     return max(MIN_LIMIT, min(value, MAX_LIMIT))
 
 
-def make_id() -> str:
-    return f"llm_rec_{uuid.uuid4().hex[:10]}"
+def normalize_generation_mode(mode: str | None = None, generation_mode: str | None = None) -> str:
+    raw_mode = clean_text(generation_mode or mode or "refresh", 40).lower()
+
+    if raw_mode == "expand":
+        return "expand"
+
+    return "refresh"
 
 
 def extract_json_text(text: str) -> str:
@@ -116,30 +115,83 @@ def parse_json_response(text: str) -> Any:
         return None
 
 
-def build_recommendation_prompt(context: str, sources: list[dict[str, Any]], limit: int) -> str:
-    """
-    Prompt dosyası varsa onu kullanır.
-    Yoksa dahili prompt ile devam eder.
-    """
+def build_exclude_context_text(exclude_payload: dict[str, list[str]] | None = None) -> str:
+    excludes = exclude_payload or {}
 
-    try:
-        from prompts.recommendation_prompt import build_recommendation_prompt as prompt_builder
+    exclude_urls = safe_list(excludes.get("exclude_urls"))[:10]
+    exclude_queries = safe_list(excludes.get("exclude_queries"))[:10]
+    exclude_titles = safe_list(excludes.get("exclude_titles"))[:10]
+    exclude_domains = safe_list(excludes.get("exclude_domains"))[:10]
 
-        return prompt_builder(
-            context=context,
-            sources=sources,
-            limit=limit,
-        )
-    except Exception:
-        pass
+    parts: list[str] = []
 
+    if exclude_titles:
+        parts.append("Tekrar edilmemesi gereken öneri başlıkları:")
+        parts.extend([f"- {clean_text(title, 220)}" for title in exclude_titles if clean_text(title)])
+
+    if exclude_queries:
+        parts.append("Tekrar edilmemesi gereken arama sorguları:")
+        parts.extend([f"- {clean_text(query, 220)}" for query in exclude_queries if clean_text(query)])
+
+    if exclude_domains:
+        parts.append("Mümkünse tekrar edilmemesi gereken domainler:")
+        parts.extend([f"- {clean_text(domain, 160)}" for domain in exclude_domains if clean_text(domain)])
+
+    if exclude_urls:
+        parts.append("Tekrar önerilmemesi gereken URL'ler:")
+        parts.extend([f"- {clean_text(url, 300)}" for url in exclude_urls if clean_text(url)])
+
+    return "\n".join(parts).strip()
+
+
+def build_internal_recommendation_prompt(
+    context: str,
+    sources: list[dict[str, Any]],
+    limit: int,
+    mode: str = "refresh",
+    exclude_payload: dict[str, list[str]] | None = None,
+) -> str:
     safe_limit = normalize_limit(limit)
+    safe_mode = normalize_generation_mode(mode)
+    exclude_text = build_exclude_context_text(exclude_payload)
+
+    if safe_mode == "expand":
+        mode_instruction = """
+Bu istek ÖNERİ OLUŞTUR modundadır.
+
+Bu modda amacın:
+- Mevcut önerileri yenilemek değil, araştırmayı genişletmek.
+- Aynı başlıkları, aynı arama sorgularını ve aynı URL'leri tekrar üretmemek.
+- Kullanıcıya farklı siteler, farklı araştırma açıları ve yeni kaynak yönleri önermek.
+- Mümkün olduğunca mevcut önerilerden farklı query üretmek.
+- Aynı fikri küçük kelime değişiklikleriyle tekrar etmemek.
+""".strip()
+    else:
+        mode_instruction = """
+Bu istek YENİLE modundadır.
+
+Bu modda amacın:
+- Mevcut kaynak bağlamını güncellemek.
+- Kullanıcının taradığı kaynaklara göre en alakalı önerileri yeniden üretmek.
+- Araştırma yönünü netleştirmek.
+""".strip()
+
+    exclude_block = ""
+
+    if exclude_text:
+        exclude_block = f"""
+Tekrar edilmemesi gereken mevcut öneri bilgileri:
+{exclude_text}
+""".strip()
 
     return f"""
 Sen MemorAI adlı kişisel araştırma asistanının araştırma öneri ajanısın.
 
 Görevin:
-Kullanıcının daha önce taradığı kaynakları analiz ederek araştırmayı genişletecek {safe_limit} adet öneri üretmek.
+Kullanıcının daha önce taradığı kaynakları analiz ederek araştırmayı geliştirecek {safe_limit} adet öneri üretmek.
+
+Mod bilgisi:
+{mode_instruction}
 
 Kurallar:
 - Sadece verilen kaynak bağlamına dayan.
@@ -148,9 +200,12 @@ Kurallar:
 - Her öneri araştırılabilir, kısa ve anlaşılır olmalı.
 - Öneriler birbirinin tekrarı olmamalı.
 - Öneriler kullanıcının sonraki araştırma adımını yönlendirmeli.
+- Arama sorguları web search için kullanılabilir olmalı.
 - Cevabı sadece geçerli JSON olarak döndür.
 - Markdown kullanma.
 - Açıklama metni ekleme.
+
+{exclude_block}
 
 Dönüş formatı:
 {{
@@ -175,10 +230,58 @@ Dönüş formatı:
 - Soru üretimi
 - Güncel kaynak araştırması
 - Teknik detay araştırması
+- Alternatif kaynak
+- Eleştirel araştırma
+- Vaka araştırması
 
 Kaynak bağlamı:
 {context}
 """.strip()
+
+
+def build_recommendation_prompt(
+    context: str,
+    sources: list[dict[str, Any]],
+    limit: int,
+    mode: str = "refresh",
+    exclude_payload: dict[str, list[str]] | None = None,
+) -> str:
+    """
+    prompts/recommendation_prompt.py varsa onu kullanır.
+    Prompt builder yeni parametreleri desteklemiyorsa dahili prompt ile devam eder.
+    """
+
+    try:
+        from prompts.recommendation_prompt import build_recommendation_prompt as prompt_builder
+
+        signature = inspect.signature(prompt_builder)
+
+        kwargs: dict[str, Any] = {
+            "context": context,
+            "sources": sources,
+            "limit": limit,
+        }
+
+        if "mode" in signature.parameters:
+            kwargs["mode"] = mode
+
+        if "generation_mode" in signature.parameters:
+            kwargs["generation_mode"] = mode
+
+        if "exclude_payload" in signature.parameters:
+            kwargs["exclude_payload"] = exclude_payload or {}
+
+        return prompt_builder(**kwargs)
+    except Exception as error:
+        print("[RESEARCH AGENT] Harici recommendation_prompt kullanılamadı:", error)
+
+    return build_internal_recommendation_prompt(
+        context=context,
+        sources=sources,
+        limit=limit,
+        mode=mode,
+        exclude_payload=exclude_payload,
+    )
 
 
 async def call_llm(prompt: str) -> str:
@@ -208,76 +311,78 @@ async def call_llm(prompt: str) -> str:
     for function_name in possible_async_functions:
         fn = getattr(llm_service, function_name, None)
 
-        if callable(fn):
+        if not callable(fn):
+            continue
+
+        try:
+            result = fn(
+                prompt,
+                temperature=0.35,
+                max_output_tokens=1400,
+            )
+
+            if hasattr(result, "__await__"):
+                result = await result
+
+            return extract_text_from_llm_result(result)
+        except TypeError:
             try:
-                result = fn(
-                    prompt,
-                    temperature=0.35,
-                    max_output_tokens=1400,
-                )
+                result = fn(prompt)
 
                 if hasattr(result, "__await__"):
                     result = await result
 
                 return extract_text_from_llm_result(result)
-            except TypeError:
+            except Exception as error:
+                print(f"[RESEARCH AGENT] llm_service.{function_name} hatası:", error)
+        except Exception as error:
+            print(f"[RESEARCH AGENT] llm_service.{function_name} hatası:", error)
+
+    llm_service_class = getattr(llm_service, "LLMService", None)
+
+    if llm_service_class:
+        try:
+            service = llm_service_class()
+
+            possible_methods = [
+                "generate_text",
+                "generate_content",
+                "ask",
+                "complete",
+                "chat",
+            ]
+
+            for method_name in possible_methods:
+                method = getattr(service, method_name, None)
+
+                if not callable(method):
+                    continue
+
                 try:
-                    result = fn(prompt)
+                    result = method(
+                        prompt,
+                        temperature=0.35,
+                        max_output_tokens=1400,
+                    )
 
                     if hasattr(result, "__await__"):
                         result = await result
 
                     return extract_text_from_llm_result(result)
+                except TypeError:
+                    try:
+                        result = method(prompt)
+
+                        if hasattr(result, "__await__"):
+                            result = await result
+
+                        return extract_text_from_llm_result(result)
+                    except Exception as error:
+                        print(f"[RESEARCH AGENT] LLMService.{method_name} hatası:", error)
                 except Exception as error:
-                    print(f"[RESEARCH AGENT] llm_service.{function_name} hatası:", error)
-            except Exception as error:
-                print(f"[RESEARCH AGENT] llm_service.{function_name} hatası:", error)
-
-    llm_service_class = getattr(llm_service, "LLMService", None)
-
-    if llm_service_class:
-      try:
-          service = llm_service_class()
-
-          possible_methods = [
-              "generate_text",
-              "generate_content",
-              "ask",
-              "complete",
-              "chat",
-          ]
-
-          for method_name in possible_methods:
-              method = getattr(service, method_name, None)
-
-              if not callable(method):
-                  continue
-
-              try:
-                  result = method(
-                      prompt,
-                      temperature=0.35,
-                      max_output_tokens=1400,
-                  )
-
-                  if hasattr(result, "__await__"):
-                      result = await result
-
-                  return extract_text_from_llm_result(result)
-              except TypeError:
-                  try:
-                      result = method(prompt)
-
-                      if hasattr(result, "__await__"):
-                          result = await result
-
-                      return extract_text_from_llm_result(result)
-                  except Exception as error:
-                      print(f"[RESEARCH AGENT] LLMService.{method_name} hatası:", error)
-              except Exception as error:
-                  print(f"[RESEARCH AGENT] LLMService.{method_name} hatası:", error)
-      except Exception as error:
-          print("[RESEARCH AGENT] LLMService oluşturulamadı:", error)
+                    print(f"[RESEARCH AGENT] LLMService.{method_name} hatası:", error)
+        except Exception as error:
+            print("[RESEARCH AGENT] LLMService oluşturulamadı:", error)
 
     print("[RESEARCH AGENT] Uygun LLM metodu bulunamadı.")
     return ""
@@ -328,130 +433,13 @@ def extract_text_from_llm_result(result: Any) -> str:
     return str(result or "")
 
 
-def normalize_recommendation(item: dict[str, Any], index: int) -> dict[str, Any] | None:
-    if not isinstance(item, dict):
-        return None
-
-    title = clean_text(
-        item.get("title")
-        or item.get("heading")
-        or item.get("query_title")
-        or item.get("search_title")
-        or "",
-        180,
-    )
-
-    summary = clean_text(
-        item.get("summary")
-        or item.get("description")
-        or item.get("snippet")
-        or item.get("content")
-        or "",
-        520,
-    )
-
-    reason = clean_text(
-        item.get("reason")
-        or item.get("why")
-        or item.get("why_recommended")
-        or item.get("recommendation_reason")
-        or "",
-        520,
-    )
-
-    query = clean_text(
-        item.get("query")
-        or item.get("search_query")
-        or item.get("searchQuery")
-        or item.get("keyword")
-        or "",
-        260,
-    )
-
-    url = clean_text(
-        item.get("url")
-        or item.get("source_url")
-        or item.get("page_url")
-        or item.get("target_url")
-        or "",
-        500,
-    )
-
-    domain = clean_text(
-        item.get("domain")
-        or item.get("site")
-        or item.get("hostname")
-        or "",
-        140,
-    )
-
-    recommendation_type = clean_text(
-        item.get("type")
-        or item.get("category")
-        or item.get("label")
-        or "Öneri",
-        80,
-    )
-
-    if not title and not summary and not query and not url:
-        return None
-
-    return {
-        "id": clean_text(item.get("id") or item.get("recommendation_id") or "") or make_id(),
-        "title": title or f"Araştırma önerisi {index + 1}",
-        "summary": summary or "Bu öneri için açıklama oluşturulamadı.",
-        "reason": reason or "Bu öneri mevcut kaynak bağlamına göre üretildi.",
-        "query": query,
-        "url": url,
-        "domain": domain or "Araştırma önerisi",
-        "type": recommendation_type,
-    }
-
-
-def extract_recommendation_list(parsed: Any) -> list[Any]:
-    if isinstance(parsed, list):
-        return parsed
-
-    if not isinstance(parsed, dict):
-        return []
-
-    for key in [
-        "recommendations",
-        "items",
-        "results",
-        "sources",
-        "recommended_sources",
-    ]:
-        value = parsed.get(key)
-
-        if isinstance(value, list):
-            return value
-
-    return []
-
-
-def normalize_recommendations(parsed: Any, limit: int) -> list[dict[str, Any]]:
-    safe_limit = normalize_limit(limit)
-    raw_items = extract_recommendation_list(parsed)
-
-    normalized = []
-
-    for index, item in enumerate(raw_items):
-        normalized_item = normalize_recommendation(item, index)
-
-        if normalized_item:
-            normalized.append(normalized_item)
-
-        if len(normalized) >= safe_limit:
-            break
-
-    return normalized
-
-
 async def generate_recommendations_with_llm(
     context: str,
     sources: list[dict[str, Any]] | None = None,
     limit: int = DEFAULT_LIMIT,
+    mode: str = "refresh",
+    generation_mode: str | None = None,
+    exclude_payload: dict[str, list[str]] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Taranan kaynak bağlamından LLM ile öneri üretir.
@@ -465,6 +453,7 @@ async def generate_recommendations_with_llm(
 
     safe_context = clean_text(context, 9000)
     safe_limit = normalize_limit(limit)
+    safe_mode = normalize_generation_mode(mode=mode, generation_mode=generation_mode)
 
     if not safe_context:
         return []
@@ -473,6 +462,8 @@ async def generate_recommendations_with_llm(
         context=safe_context,
         sources=sources or [],
         limit=safe_limit,
+        mode=safe_mode,
+        exclude_payload=exclude_payload or {},
     )
 
     llm_text = await call_llm(prompt)
@@ -485,7 +476,12 @@ async def generate_recommendations_with_llm(
     if not parsed:
         return []
 
-    recommendations = normalize_recommendations(parsed, safe_limit)
+    recommendations = normalize_recommendations(
+        recommendations=parsed,
+        limit=safe_limit,
+        mode=safe_mode,
+        exclude_payload=exclude_payload or {},
+    )
 
     print("[RESEARCH AGENT] LLM öneri sayısı:", len(recommendations))
 

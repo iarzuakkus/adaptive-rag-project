@@ -4,12 +4,14 @@ Dosya: prompts/chat_intent_prompt.py
 Görev:
 - Chat mesajının niyetini sınıflandırır.
 - Kullanıcı normal bilgi sorusu mu soruyor,
-  yoksa önceki cevabın kaynağını sayfada görmek mi istiyor bunu ayırır.
+  önceki cevabın kaynağını sayfada görmek mi istiyor,
+  yoksa mevcut kaynaklara göre öneri mi istiyor bunu ayırır.
 
 Kullanım:
 - chat_rag.py içinde answer_chat akışının en başında çağrılır.
 - Eğer intent source_navigation ise yeni RAG cevabı üretilmez.
 - Frontend'e answer_type="source_navigation" ve highlight action döndürülür.
+- Eğer intent recommendation_request ise frontend'e öneri üretme action'ı döndürülür.
 """
 
 
@@ -34,6 +36,10 @@ Kullanıcı önceki cevabın nereden alındığını görmek istiyor.
 Kullanıcı cevabın geçtiği yeri sayfada görmek istiyor.
 Kullanıcı kaynak göster, nereden aldın, sayfada göster, bunu göster gibi yönlendirme istiyor.
 
+3. recommendation_request
+Kullanıcı mevcut kaynaklara, aktif sayfaya veya araştırma konusuna göre yeni kaynak önerisi istiyor.
+Kullanıcı araştırmayı genişletmek, benzer kaynaklar bulmak, başka ne okuyacağını öğrenmek veya öneri paneline kaynak önerisi üretmek istiyor.
+
 source_navigation örnekleri:
 - Kaynak göster
 - Bunu nereden aldın?
@@ -47,6 +53,22 @@ source_navigation örnekleri:
 - Hangi paragrafta geçiyor?
 - Bunu sayfada işaretle
 
+recommendation_request örnekleri:
+- Bana kaynak öner
+- Bu konuyla ilgili kaynak öner
+- Bu kaynaklara göre bana öneri sun
+- Araştırmayı genişlet
+- Bu konuyu daha iyi anlamak için ne okuyayım?
+- Benzer kaynaklar bul
+- Bana yeni siteler öner
+- Bu konuda başka hangi kaynaklara bakmalıyım?
+- Öneri oluştur
+- Kaynak önerisi üret
+- Bu araştırmaya devam etmek için öneri ver
+- Okuma önerisi sun
+- Bu konuyu derinleştirmek için neye bakayım?
+- Bana araştırma önerisi ver
+
 normal_chat örnekleri:
 - Bu sayfa ne anlatıyor?
 - Bu konuyu özetle
@@ -55,6 +77,16 @@ normal_chat örnekleri:
 - Bu iki kaynak arasında fark ne?
 - Bana kısa cevap ver
 - Detaylandırır mısın?
+- Bu kaynaklardan sonuç çıkar
+- Bunu açıklar mısın?
+
+Önemli ayrım kuralları:
+- Kullanıcı "kaynak göster", "nerede yazıyor", "sayfada göster" diyorsa source_navigation seç.
+- Kullanıcı "kaynak öner", "öneri sun", "benzer kaynak bul", "ne okuyayım" diyorsa recommendation_request seç.
+- Kullanıcı sadece bir bilgi sorusu soruyorsa normal_chat seç.
+- Kullanıcı hem kaynak hem öneri kelimesini kullanıyorsa ve amacı yeni kaynak bulmaksa recommendation_request seç.
+- Kullanıcı mevcut cevabın kaynağını görmek istiyorsa source_navigation seç.
+- Emin değilsen normal_chat seç.
 
 Dönüş formatı kesinlikle şu JSON yapısında olmalı:
 
@@ -70,6 +102,21 @@ veya:
   "intent": "source_navigation",
   "confidence": 0.0,
   "reason": "kısa neden"
+}
+
+veya:
+
+{
+  "intent": "recommendation_request",
+  "confidence": 0.0,
+  "reason": "kısa neden",
+  "action": {
+    "type": "generate_recommendations",
+    "reason": "chat_natural_language_request",
+    "mode": "refresh",
+    "open_panel": true,
+    "show_in_chat": true
+  }
 }
 """
 
@@ -98,8 +145,55 @@ Sistemde önceki assistant cevabı var mı?
 Kurallar:
 - Kullanıcı önceki cevabın kaynağını, sayfadaki yerini veya nereden alındığını soruyorsa intent source_navigation olmalı.
 - Kullanıcı yeni bilgi istiyorsa intent normal_chat olmalı.
+- Kullanıcı mevcut kaynaklara, aktif sayfaya veya araştırma konusuna göre yeni kaynak önerisi istiyorsa intent recommendation_request olmalı.
+- Kullanıcı "bana kaynak öner", "öneri sun", "benzer kaynak bul", "araştırmayı genişlet", "ne okuyayım", "başka hangi kaynaklara bakayım" gibi ifadeler kullanıyorsa recommendation_request seç.
 - Kullanıcı "bunu göster", "şunu göster", "nerede yazıyor" gibi bağlama bağlı konuşuyorsa ve önceki cevap/chunk varsa source_navigation seç.
+- "Kaynak göster" ifadesi önceki cevabın kaynağını görmek anlamındaysa source_navigation seç.
+- "Kaynak öner" ifadesi yeni kaynak önerisi istemek anlamındaysa recommendation_request seç.
 - Emin değilsen normal_chat seç.
+
+recommendation_request seçersen action alanını mutlaka şu şekilde döndür:
+
+{{
+  "type": "generate_recommendations",
+  "reason": "chat_natural_language_request",
+  "mode": "refresh",
+  "open_panel": true,
+  "show_in_chat": true
+}}
+
+Dönüş örnekleri:
+
+Kullanıcı: "Bana kaynak öner"
+JSON:
+{{
+  "intent": "recommendation_request",
+  "confidence": 0.95,
+  "reason": "Kullanıcı mevcut araştırma bağlamına göre yeni kaynak önerisi istiyor.",
+  "action": {{
+    "type": "generate_recommendations",
+    "reason": "chat_natural_language_request",
+    "mode": "refresh",
+    "open_panel": true,
+    "show_in_chat": true
+  }}
+}}
+
+Kullanıcı: "Bunu nereden aldın?"
+JSON:
+{{
+  "intent": "source_navigation",
+  "confidence": 0.95,
+  "reason": "Kullanıcı önceki cevabın kaynağını veya sayfadaki yerini görmek istiyor."
+}}
+
+Kullanıcı: "Bu sayfa ne anlatıyor?"
+JSON:
+{{
+  "intent": "normal_chat",
+  "confidence": 0.9,
+  "reason": "Kullanıcı yeni bir bilgi cevabı istiyor."
+}}
 
 Sadece JSON döndür.
 """

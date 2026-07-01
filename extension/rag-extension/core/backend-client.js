@@ -10,6 +10,7 @@
   - Bu dosya Chrome extension service worker içinde importScripts ile yüklenir.
   - window kullanılmaz.
   - Mock veri üretmez.
+  - Öneri üretme payload'ını kırpmaz; mode ve exclude alanlarını backend'e taşır.
 */
 
 (function () {
@@ -35,6 +36,22 @@
       : `/${endpoint}`;
 
     return `${cleanBase}${cleanEndpoint}`;
+  }
+
+  function buildQueryString(params = {}) {
+    const query = new URLSearchParams();
+
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        return;
+      }
+
+      query.set(key, String(value));
+    });
+
+    const queryText = query.toString();
+
+    return queryText ? `?${queryText}` : "";
   }
 
   function withTimeout(promise, timeoutMs, url) {
@@ -77,7 +94,8 @@
     console.log("[BACKEND CLIENT] Backend isteği:", {
       url,
       method: fetchOptions.method,
-      timeoutMs
+      timeoutMs,
+      body: options.body || null
     });
 
     const response = await withTimeout(
@@ -166,6 +184,44 @@
         error: error?.message || `${label} işlemi başarısız oldu.`
       };
     }
+  }
+
+  function safeArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
+  function normalizeRecommendationMode(payload = {}) {
+    const mode = String(
+      payload.mode ||
+      payload.generation_mode ||
+      ""
+    ).trim().toLowerCase();
+
+    if (mode === "expand") {
+      return "expand";
+    }
+
+    return "refresh";
+  }
+
+  function buildRecommendationPayload(payload = {}) {
+    const mode = normalizeRecommendationMode(payload);
+
+    return {
+      sources: safeArray(payload.sources),
+      source_count: Number(payload.source_count || payload.sourceCount || 0),
+      force: payload.force === true,
+
+      mode,
+      generation_mode: mode,
+      reason: String(payload.reason || ""),
+
+      exclude_recommendations: safeArray(payload.exclude_recommendations),
+      exclude_urls: safeArray(payload.exclude_urls),
+      exclude_queries: safeArray(payload.exclude_queries),
+      exclude_titles: safeArray(payload.exclude_titles),
+      exclude_domains: safeArray(payload.exclude_domains)
+    };
   }
 
   function sendIngest(payload) {
@@ -265,15 +321,29 @@
     });
   }
 
+  function getRecommendations(payload = {}) {
+    const queryString = buildQueryString({
+      source_count: payload.source_count || payload.sourceCount || "",
+      mode: "refresh"
+    });
+
+    return safeRequest("/research/recommendations GET", () =>
+      requestBackend(`/research/recommendations${queryString}`, {
+        method: "GET",
+        timeoutMs: DEFAULT_TIMEOUT_MS
+      })
+    );
+  }
+
   function generateRecommendations(payload) {
-    return safeRequest("/research/recommendations", () =>
+    const requestPayload = buildRecommendationPayload(payload);
+
+    console.log("[BACKEND CLIENT] Recommendation payload:", requestPayload);
+
+    return safeRequest("/research/recommendations POST", () =>
       requestBackend("/research/recommendations", {
         method: "POST",
-        body: {
-          sources: Array.isArray(payload?.sources) ? payload.sources : [],
-          source_count: Number(payload?.source_count || 0),
-          force: payload?.force === true
-        },
+        body: requestPayload,
         timeoutMs: RECOMMENDATION_TIMEOUT_MS
       })
     );
@@ -291,6 +361,7 @@
     deleteSource,
     getSourceChunks,
     getChunkDetail,
+    getRecommendations,
     generateRecommendations
   };
 })();

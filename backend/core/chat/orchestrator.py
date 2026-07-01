@@ -5,6 +5,7 @@ Görev:
 - Chat akışının ana yöneticisidir.
 - Kullanıcı mesajının intent bilgisini alır.
 - Kaynak gösterme isteği varsa RAG çalıştırmadan frontend'e highlight aksiyonu döndürür.
+- Öneri isteği varsa RAG çalıştırmadan frontend'e öneri üretme aksiyonu döndürür.
 - Normal sorularda retriever, prompt builder ve LLM akışını çalıştırır.
 - LLM'in döndürdüğü JSON içinden answer ve used_context_indexes alanlarını ayırır.
 - used_context_indexes bilgisine göre cevabı destekleyen chunk'ı öne alır.
@@ -102,21 +103,86 @@ def _normalize_top_k(top_k: int) -> int:
     return top_k
 
 
-def _should_run_source_navigation(question: str) -> dict | None:
+def _detect_chat_intent_result(question: str) -> dict:
     """
-    Kullanıcının mesajı önceki cevabın kaynağını gösterme isteği mi kontrol eder.
+    Kullanıcının mesajındaki intent bilgisini tek seferde algılar.
     """
 
-    intent_result = detect_chat_intent(
+    return detect_chat_intent(
         question=question,
         has_previous_answer=True,
         has_previous_chunks=True,
     )
 
-    if is_source_navigation_intent(intent_result):
-        return intent_result
 
-    return None
+def _is_recommendation_request_intent(
+    intent_result: dict,
+    min_confidence: float = 0.55,
+) -> bool:
+    """
+    Intent sonucunun öneri üretme isteği olup olmadığını döndürür.
+    """
+
+    if not isinstance(intent_result, dict):
+        return False
+
+    intent = str(intent_result.get("intent") or "").strip().lower()
+
+    try:
+        confidence = float(intent_result.get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+
+    return intent == "recommendation_request" and confidence >= min_confidence
+
+
+def _build_recommendation_action(intent_result: dict) -> dict:
+    """
+    Frontend'in öneri üretimini tetiklemesi için action payload'ı üretir.
+    """
+
+    raw_action = {}
+
+    if isinstance(intent_result, dict) and isinstance(intent_result.get("action"), dict):
+        raw_action = intent_result.get("action") or {}
+
+    mode = str(raw_action.get("mode") or "refresh").strip().lower()
+
+    if mode not in {"refresh", "expand"}:
+        mode = "refresh"
+
+    return {
+        "type": "generate_recommendations",
+        "reason": str(
+            raw_action.get("reason") or "chat_natural_language_request"
+        ).strip(),
+        "mode": mode,
+        "generation_mode": mode,
+        "open_panel": raw_action.get("open_panel", True) is not False,
+        "show_in_chat": raw_action.get("show_in_chat", True) is not False,
+        "skip_auto_cooldown": True,
+        "force_reload_sources": True,
+    }
+
+
+def _build_recommendation_request_response(intent_result: dict) -> dict:
+    """
+    Kullanıcı chat içinde doğal dille öneri istediğinde RAG çalıştırmadan
+    frontend'e öneri üretme action'ı döndürür.
+    """
+
+    action = _build_recommendation_action(intent_result)
+
+    return {
+        "answer": "Mevcut kaynaklarına göre yeni öneriler hazırlıyorum. Öneriler sekmesinde de görebilirsin.",
+        "sources": [],
+        "chunks": [],
+        "actions": [action],
+        "source_count": 0,
+        "status": "success",
+        "answer_type": "recommendation_request",
+        "intent": intent_result,
+    }
 
 
 def _build_rag_payloads(
@@ -373,12 +439,13 @@ def answer_chat(
     1. Boş soru kontrol edilir.
     2. Intent algılanır.
     3. Kaynak gösterme isteği varsa RAG çalışmadan response döner.
-    4. Normal soruysa retriever çalışır.
-    5. Prompt hazırlanır.
-    6. LLM JSON cevabı üretilir.
-    7. answer ve used_context_indexes ayrılır.
-    8. used_context_indexes bilgisine göre primary chunk başa alınır.
-    9. Kaynak/chunk/action bilgileriyle birlikte response döner.
+    4. Öneri isteği varsa RAG çalışmadan response döner.
+    5. Normal soruysa retriever çalışır.
+    6. Prompt hazırlanır.
+    7. LLM JSON cevabı üretilir.
+    8. answer ve used_context_indexes ayrılır.
+    9. used_context_indexes bilgisine göre primary chunk başa alınır.
+    10. Kaynak/chunk/action bilgileriyle birlikte response döner.
     """
 
     if not _is_valid_question(question):
@@ -387,10 +454,13 @@ def answer_chat(
     normalized_scope = normalize_scope(scope)
     safe_top_k = _normalize_top_k(top_k)
 
-    source_navigation_intent = _should_run_source_navigation(question)
+    intent_result = _detect_chat_intent_result(question)
 
-    if source_navigation_intent:
-        return build_source_navigation_response(source_navigation_intent)
+    if is_source_navigation_intent(intent_result):
+        return build_source_navigation_response(intent_result)
+
+    if _is_recommendation_request_intent(intent_result):
+        return _build_recommendation_request_response(intent_result)
 
     try:
         chunks = retrieve_relevant_chunks(

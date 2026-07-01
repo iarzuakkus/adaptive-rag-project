@@ -10,6 +10,7 @@
  * - Assistant cevabını session-store.js içine kaydeder.
  * - Backend'den gelen son chunks bilgisini sayfa üzerinde highlight için geçici olarak saklar.
  * - LLM tarafından kaynak gösterme niyeti algılanırsa son cevabın ilk/en alakalı chunk'ını sayfada gösterir.
+ * - LLM tarafından öneri isteği algılanırsa Kaynaklar / Öneriler alanına yönlendirir ve öneri üretimini tetikler.
  * - Sohbet temizleme işlemini yönetir.
  *
  * Not:
@@ -56,6 +57,12 @@
     if (messages) {
       messages.scrollTop = messages.scrollHeight;
     }
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
   }
 
   function setInputDisabled(isDisabled) {
@@ -145,6 +152,10 @@
     return Array.isArray(result?.chunks) ? result.chunks : [];
   }
 
+  function getResultActions(result) {
+    return Array.isArray(result?.actions) ? result.actions : [];
+  }
+
   function getSavedChunks() {
     return Array.isArray(window.AdaptiveRagLastChatChunks)
       ? window.AdaptiveRagLastChatChunks
@@ -180,7 +191,7 @@
       answer: result?.answer || "",
       chunks,
       sources: Array.isArray(result?.sources) ? result.sources : [],
-      actions: Array.isArray(result?.actions) ? result.actions : [],
+      actions: getResultActions(result),
       status: result?.status || "success",
       answerType: result?.answer_type || result?.answerType || "short",
       sourceCount:
@@ -230,13 +241,16 @@
     return "";
   }
 
-  function isSourceNavigationResult(result) {
-    const answerType = String(
+  function getAnswerType(result) {
+    return String(
       result?.answer_type ||
       result?.answerType ||
       ""
     ).trim().toLowerCase();
+  }
 
+  function isSourceNavigationResult(result) {
+    const answerType = getAnswerType(result);
     const status = String(result?.status || "").trim().toLowerCase();
     const intent = getIntentValue(result);
 
@@ -257,7 +271,7 @@
       return true;
     }
 
-    const actions = Array.isArray(result?.actions) ? result.actions : [];
+    const actions = getResultActions(result);
 
     return actions.some((action) => {
       const actionType = getActionType(action);
@@ -269,6 +283,28 @@
         "highlight_answer_source"
       ].includes(actionType);
     });
+  }
+
+  function getRecommendationAction(result) {
+    const actions = getResultActions(result);
+
+    return actions.find((action) => {
+      return getActionType(action) === "generate_recommendations";
+    }) || null;
+  }
+
+  function isRecommendationRequestResult(result) {
+    const answerType = getAnswerType(result);
+    const intent = getIntentValue(result);
+
+    if (
+      answerType === "recommendation_request" ||
+      intent === "recommendation_request"
+    ) {
+      return true;
+    }
+
+    return Boolean(getRecommendationAction(result));
   }
 
   async function highlightPrimaryChunkOnPage(chunks) {
@@ -355,6 +391,252 @@
     return "Tabii, son cevabın geçtiği bölümü sayfada gösteriyorum.";
   }
 
+  function normalizeText(text) {
+    return String(text || "").trim().toLowerCase();
+  }
+
+  function clickFirstExistingSelector(selectors) {
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+
+      if (element && typeof element.click === "function") {
+        element.click();
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function clickButtonByText(possibleTexts) {
+    const normalizedTargets = possibleTexts
+      .map(normalizeText)
+      .filter(Boolean);
+
+    const candidates = Array.from(
+      document.querySelectorAll(
+        "button, [role='tab'], [data-tab], [data-rag-tab], [data-subtab]"
+      )
+    );
+
+    const matched = candidates.find((element) => {
+      const text = normalizeText(element.textContent);
+
+      return normalizedTargets.some((target) => {
+        return text === target || text.includes(target);
+      });
+    });
+
+    if (matched && typeof matched.click === "function") {
+      matched.click();
+      return true;
+    }
+
+    return false;
+  }
+
+  async function openSourcesArea() {
+    window.dispatchEvent(
+      new CustomEvent("adaptive-rag-open-widget-tab", {
+        detail: {
+          tab: "sources"
+        }
+      })
+    );
+
+    const clicked = clickFirstExistingSelector([
+      "#ragSourcesTabBtn",
+      "#ragTabSources",
+      "#ragSourcesTab",
+      "[data-rag-tab='sources']",
+      "[data-tab='sources']",
+      "[data-tab-id='sources']",
+      "[data-target='sources']",
+      "[aria-controls='ragSourcesPanel']",
+      ".rag-tab-sources"
+    ]);
+
+    if (!clicked) {
+      clickButtonByText(["Kaynaklar"]);
+    }
+
+    await wait(100);
+  }
+
+  async function openRecommendationsArea() {
+    await openSourcesArea();
+
+    window.dispatchEvent(
+      new CustomEvent("adaptive-rag-open-sources-subtab", {
+        detail: {
+          subtab: "recommendations"
+        }
+      })
+    );
+
+    const clicked = clickFirstExistingSelector([
+      "#ragRecommendationsTabBtn",
+      "#ragSourcesRecommendationsTab",
+      "#ragSourceRecommendationsTab",
+      "#ragRecommendationsSubtab",
+      "[data-rag-source-subtab='recommendations']",
+      "[data-source-subtab='recommendations']",
+      "[data-rag-subtab='recommendations']",
+      "[data-subtab='recommendations']",
+      "[data-tab='recommendations']",
+      "[aria-controls='ragRecommendationsPanel']",
+      ".rag-source-tab-recommendations"
+    ]);
+
+    if (!clicked) {
+      clickButtonByText(["Öneriler", "Oneriler"]);
+    }
+
+    await wait(100);
+  }
+
+  function getActionBoolean(action, camelKey, snakeKey, defaultValue = true) {
+    if (!action || typeof action !== "object") {
+      return defaultValue;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(action, camelKey)) {
+      return action[camelKey] !== false;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(action, snakeKey)) {
+      return action[snakeKey] !== false;
+    }
+
+    return defaultValue;
+  }
+
+  function getActionMode(action) {
+    const rawMode = String(
+      action?.mode ||
+      action?.generation_mode ||
+      action?.generationMode ||
+      "refresh"
+    ).trim().toLowerCase();
+
+    if (rawMode === "expand") {
+      return "expand";
+    }
+
+    return "refresh";
+  }
+
+  function normalizeRecommendations(rawRecommendations) {
+    if (!Array.isArray(rawRecommendations)) {
+      return [];
+    }
+
+    return rawRecommendations
+      .filter((item) => item && typeof item === "object")
+      .map((item, index) => {
+        return {
+          title: String(
+            item.title ||
+            item.name ||
+            item.query ||
+            item.topic ||
+            `Öneri ${index + 1}`
+          ).trim(),
+          reason: String(
+            item.reason ||
+            item.description ||
+            item.summary ||
+            item.snippet ||
+            item.explanation ||
+            ""
+          ).trim()
+        };
+      })
+      .filter((item) => item.title);
+  }
+
+  function getRecommendationsFromResult(result) {
+    if (Array.isArray(result?.recommendations)) {
+      return normalizeRecommendations(result.recommendations);
+    }
+
+    if (Array.isArray(result?.data?.recommendations)) {
+      return normalizeRecommendations(result.data.recommendations);
+    }
+
+    if (Array.isArray(result?.state?.recommendations)) {
+      return normalizeRecommendations(result.state.recommendations);
+    }
+
+    const recommendationEvents = window.AdaptiveRagRecommendationEvents;
+
+    if (recommendationEvents?.getState) {
+      const state = recommendationEvents.getState();
+
+      if (Array.isArray(state?.recommendations)) {
+        return normalizeRecommendations(state.recommendations);
+      }
+    }
+
+    return [];
+  }
+
+  function formatRecommendationsForChat(recommendations) {
+    const safeRecommendations = normalizeRecommendations(recommendations);
+
+    if (!safeRecommendations.length) {
+      return "Öneri üretimi başlatıldı. Sonuçları Kaynaklar > Öneriler bölümünde görebilirsin.";
+    }
+
+    const visibleRecommendations = safeRecommendations.slice(0, 5);
+
+    const lines = visibleRecommendations.map((item, index) => {
+      const reason = item.reason
+        ? `\n   ${item.reason}`
+        : "";
+
+      return `${index + 1}. ${item.title}${reason}`;
+    });
+
+    return `Kaynaklarına göre öneriler hazırlandı. Kaynaklar > Öneriler kısmına da yönlendirdim.\n\n${lines.join("\n\n")}`;
+  }
+
+  async function runRecommendationAction(action) {
+    const recommendationEvents = window.AdaptiveRagRecommendationEvents;
+
+    if (
+      !recommendationEvents ||
+      typeof recommendationEvents.generateRecommendationsAfterSourceChange !== "function"
+    ) {
+      console.warn("[CHAT EVENTS] RecommendationEvents modülü bulunamadı.");
+      return null;
+    }
+
+    const mode = getActionMode(action);
+
+    const result = await recommendationEvents.generateRecommendationsAfterSourceChange({
+      reason: String(action?.reason || "chat_natural_language_request").trim(),
+      mode,
+      generationMode: mode,
+      focusCurrentPage: false,
+      preserveIfEmpty: true,
+      skipAutoCooldown: getActionBoolean(
+        action,
+        "skipAutoCooldown",
+        "skip_auto_cooldown",
+        true
+      ),
+      forceReloadSources: getActionBoolean(
+        action,
+        "forceReloadSources",
+        "force_reload_sources",
+        true
+      )
+    });
+
+    return result;
+  }
+
   async function handleSourceNavigationResult(result, question, refreshWidget) {
     const resultChunks = getResultChunks(result);
     const previousChunks = getSavedChunks();
@@ -374,6 +656,49 @@
 
     if (!highlighted) {
       console.warn("[CHAT EVENTS] Kaynak yönlendirme için highlight başarısız.");
+    }
+  }
+
+  async function handleRecommendationRequestResult(result, question, refreshWidget) {
+    const answer = formatChatResult(result);
+    const action = getRecommendationAction(result) || {};
+
+    saveLastChatHighlightData(result, question, {
+      preserveExistingChunks: true
+    });
+
+    await addMessage("assistant", answer);
+    await refreshIfPossible(refreshWidget);
+
+    if (getActionBoolean(action, "openPanel", "open_panel", true)) {
+      await openRecommendationsArea();
+    } else {
+      await openSourcesArea();
+    }
+
+    const recommendationResult = await runRecommendationAction(action);
+
+    await refreshIfPossible(refreshWidget);
+
+    if (getActionBoolean(action, "openPanel", "open_panel", true)) {
+      await openRecommendationsArea();
+    } else {
+      await openSourcesArea();
+    }
+
+    if (getActionBoolean(action, "showInChat", "show_in_chat", true)) {
+      const recommendations = getRecommendationsFromResult(recommendationResult);
+
+      await addMessage(
+        "assistant",
+        formatRecommendationsForChat(recommendations)
+      );
+
+      await refreshIfPossible(refreshWidget);
+
+      if (getActionBoolean(action, "openPanel", "open_panel", true)) {
+        await openRecommendationsArea();
+      }
     }
   }
 
@@ -406,6 +731,8 @@
 
       if (isSourceNavigationResult(result)) {
         await handleSourceNavigationResult(result, question, refreshWidget);
+      } else if (isRecommendationRequestResult(result)) {
+        await handleRecommendationRequestResult(result, question, refreshWidget);
       } else {
         await handleNormalChatResult(result, question, refreshWidget);
       }

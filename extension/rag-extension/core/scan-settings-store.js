@@ -7,6 +7,8 @@
  * - Elle tarama / otomatik tarama seçimini tutar.
  * - Kullanıcının kapattığı sayfalarda tekrar öneri kartı göstermemek için URL bilgisini saklar.
  * - Daha önce taranan URL'leri tutarak aynı sayfanın gereksiz tekrar taranmasını engeller.
+ * - Kaynak silindiğinde ilgili URL'nin tekrar taranabilmesi için scanned/dismissed kayıtlarını temizler.
+ * - Oturum kapatıldığında scanned/dismissed geçmişini temizler.
  *
  * Tarama modları:
  * - manual: Sayfaya girince kullanıcıya “Bu sayfayı tara?” kartı gösterilir.
@@ -15,6 +17,7 @@
 
 (function () {
   const SCAN_SETTINGS_KEY = "adaptive_rag_scan_settings";
+  const SESSION_ENABLED_KEY = "adaptive_rag_session_enabled";
 
   const DEFAULT_SCAN_SETTINGS = {
     scanMode: "manual",
@@ -22,20 +25,12 @@
     scannedUrls: []
   };
 
-  /**
-   * Aynı store tekrar inject edilirse yeniden tanımlanmasını engeller.
-   */
+  let sessionWatcherBound = false;
+
   if (window.AdaptiveRagScanSettingsStore?.__storeName === "scan-settings-store") {
     return;
   }
 
-  /**
-   * Chrome extension context hâlâ geçerli mi kontrol eder.
-   *
-   * Not:
-   * Extension reload edildiğinde açık sayfada kalan eski content script
-   * "Extension context invalidated" hatası verebilir.
-   */
   function isChromeStorageAvailable() {
     try {
       return (
@@ -45,36 +40,68 @@
         typeof chrome.storage.local.get === "function" &&
         typeof chrome.storage.local.set === "function"
       );
-    } catch (error) {
+    } catch {
       return false;
     }
   }
 
-  /**
-   * chrome.runtime.lastError mesajını güvenli şekilde alır.
-   */
   function getChromeLastErrorMessage() {
     try {
       return chrome.runtime?.lastError?.message || "";
-    } catch (error) {
+    } catch {
       return "";
     }
   }
 
-  /**
-   * URL değerini güvenli hale getirir.
-   */
   function normalizeUrl(url) {
     if (typeof url !== "string") {
       return "";
     }
 
-    return url.trim();
+    const rawUrl = url.trim();
+
+    if (!rawUrl) {
+      return "";
+    }
+
+    try {
+      const parsedUrl = new URL(rawUrl, window.location.href);
+      parsedUrl.hash = "";
+
+      let normalized = parsedUrl.toString();
+
+      if (normalized.endsWith("/") && parsedUrl.pathname !== "/") {
+        normalized = normalized.slice(0, -1);
+      }
+
+      return normalized;
+    } catch {
+      return rawUrl;
+    }
   }
 
-  /**
-   * Storage içinden gelen ayarları güvenli formata dönüştürür.
-   */
+  function uniqueNormalizedUrls(urls) {
+    const seen = new Set();
+    const cleanUrls = [];
+
+    if (!Array.isArray(urls)) {
+      return cleanUrls;
+    }
+
+    urls.forEach((url) => {
+      const normalizedUrl = normalizeUrl(url);
+
+      if (!normalizedUrl || seen.has(normalizedUrl)) {
+        return;
+      }
+
+      seen.add(normalizedUrl);
+      cleanUrls.push(normalizedUrl);
+    });
+
+    return cleanUrls;
+  }
+
   function normalizeScanSettings(settings) {
     if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
       return { ...DEFAULT_SCAN_SETTINGS };
@@ -82,19 +109,23 @@
 
     return {
       scanMode: settings.scanMode === "auto" ? "auto" : "manual",
-      dismissedUrls: Array.isArray(settings.dismissedUrls)
-        ? settings.dismissedUrls.filter((url) => typeof url === "string")
-        : [],
-      scannedUrls: Array.isArray(settings.scannedUrls)
-        ? settings.scannedUrls.filter((url) => typeof url === "string")
-        : []
+      dismissedUrls: uniqueNormalizedUrls(settings.dismissedUrls),
+      scannedUrls: uniqueNormalizedUrls(settings.scannedUrls)
     };
   }
 
-  /**
-   * Storage okuma işlemini Promise formatına çevirir.
-   * Extension context bozulursa null döndürür, sayfayı kırmaz.
-   */
+  function removeUrlFromList(urls, targetUrl) {
+    const normalizedTargetUrl = normalizeUrl(targetUrl);
+
+    if (!normalizedTargetUrl) {
+      return uniqueNormalizedUrls(urls);
+    }
+
+    return uniqueNormalizedUrls(urls).filter((url) => {
+      return normalizeUrl(url) !== normalizedTargetUrl;
+    });
+  }
+
   function getFromStorage(key) {
     return new Promise((resolve) => {
       let settled = false;
@@ -147,10 +178,6 @@
     });
   }
 
-  /**
-   * Storage yazma işlemini Promise formatına çevirir.
-   * Extension context bozulursa mevcut değeri döndürür, sayfayı kırmaz.
-   */
   function setToStorage(key, value) {
     return new Promise((resolve) => {
       let settled = false;
@@ -208,35 +235,21 @@
     });
   }
 
-  /**
-   * Tarama ayarlarını storage içinden okur.
-   * Kayıt yoksa varsayılan ayarları döndürür.
-   */
   async function getScanSettings() {
     const savedSettings = await getFromStorage(SCAN_SETTINGS_KEY);
     return normalizeScanSettings(savedSettings);
   }
 
-  /**
-   * Güncel tarama ayarlarını storage içine kaydeder.
-   */
   async function saveScanSettings(settings) {
     const normalizedSettings = normalizeScanSettings(settings);
     return await setToStorage(SCAN_SETTINGS_KEY, normalizedSettings);
   }
 
-  /**
-   * Aktif tarama modunu döndürür.
-   * manual veya auto dönebilir.
-   */
   async function getScanMode() {
     const settings = await getScanSettings();
     return settings.scanMode;
   }
 
-  /**
-   * Kullanıcının seçtiği tarama modunu kaydeder.
-   */
   async function setScanMode(scanMode) {
     const settings = await getScanSettings();
 
@@ -248,10 +261,6 @@
     return await saveScanSettings(nextSettings);
   }
 
-  /**
-   * Kullanıcının tarama öneri kartını kapattığı URL'yi kaydeder.
-   * Böylece aynı sayfada tekrar tekrar öneri gösterilmez.
-   */
   async function markUrlDismissed(url) {
     const normalizedUrl = normalizeUrl(url);
 
@@ -268,9 +277,6 @@
     return await saveScanSettings(settings);
   }
 
-  /**
-   * Bu URL için öneri kartının daha önce kapatılıp kapatılmadığını kontrol eder.
-   */
   async function isUrlDismissed(url) {
     const normalizedUrl = normalizeUrl(url);
 
@@ -282,10 +288,6 @@
     return settings.dismissedUrls.includes(normalizedUrl);
   }
 
-  /**
-   * Başarıyla taranan URL'yi kaydeder.
-   * Otomatik modda aynı sayfanın tekrar taranmasını engellemek için kullanılır.
-   */
   async function markUrlScanned(url) {
     const normalizedUrl = normalizeUrl(url);
 
@@ -302,9 +304,6 @@
     return await saveScanSettings(settings);
   }
 
-  /**
-   * Bu URL'nin daha önce taranıp taranmadığını kontrol eder.
-   */
   async function isUrlScanned(url) {
     const normalizedUrl = normalizeUrl(url);
 
@@ -316,10 +315,40 @@
     return settings.scannedUrls.includes(normalizedUrl);
   }
 
-  /**
-   * Dismissed ve scanned URL kayıtlarını temizler.
-   * Tarama modu korunur.
-   */
+  async function unmarkUrlScanned(url) {
+    const settings = await getScanSettings();
+
+    const nextSettings = {
+      ...settings,
+      scannedUrls: removeUrlFromList(settings.scannedUrls, url)
+    };
+
+    return await saveScanSettings(nextSettings);
+  }
+
+  async function unmarkUrlDismissed(url) {
+    const settings = await getScanSettings();
+
+    const nextSettings = {
+      ...settings,
+      dismissedUrls: removeUrlFromList(settings.dismissedUrls, url)
+    };
+
+    return await saveScanSettings(nextSettings);
+  }
+
+  async function unmarkUrl(url) {
+    const settings = await getScanSettings();
+
+    const nextSettings = {
+      ...settings,
+      scannedUrls: removeUrlFromList(settings.scannedUrls, url),
+      dismissedUrls: removeUrlFromList(settings.dismissedUrls, url)
+    };
+
+    return await saveScanSettings(nextSettings);
+  }
+
   async function clearScanHistory() {
     const settings = await getScanSettings();
 
@@ -332,12 +361,44 @@
     return await saveScanSettings(nextSettings);
   }
 
-  /**
-   * Tüm tarama ayarlarını varsayılan hale getirir.
-   */
   async function resetScanSettings() {
     return await saveScanSettings({ ...DEFAULT_SCAN_SETTINGS });
   }
+
+  function bindSessionWatcher() {
+    try {
+      if (
+        sessionWatcherBound ||
+        typeof chrome === "undefined" ||
+        !chrome.storage ||
+        !chrome.storage.onChanged
+      ) {
+        return;
+      }
+
+      sessionWatcherBound = true;
+
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName !== "local") {
+          return;
+        }
+
+        const sessionChange = changes[SESSION_ENABLED_KEY];
+
+        if (!sessionChange) {
+          return;
+        }
+
+        if (sessionChange.newValue === false) {
+          clearScanHistory();
+        }
+      });
+    } catch (error) {
+      console.warn("[SCAN SETTINGS] Session watcher bağlanamadı:", error);
+    }
+  }
+
+  bindSessionWatcher();
 
   window.AdaptiveRagScanSettingsStore = {
     __storeName: "scan-settings-store",
@@ -351,6 +412,10 @@
     isUrlDismissed,
     markUrlScanned,
     isUrlScanned,
+
+    unmarkUrlScanned,
+    unmarkUrlDismissed,
+    unmarkUrl,
 
     clearScanHistory,
     resetScanSettings

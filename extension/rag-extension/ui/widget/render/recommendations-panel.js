@@ -8,7 +8,7 @@
  *
  * Not:
  * - Bu dosya sadece render işi yapar.
- * - Öneri üretme, yenileme, sayfa açma ve öneriyi tarama eventleri source-events.js üzerinden yönetilir.
+ * - Öneri üretme, yenileme, sayfa açma ve öneriyi tarama eventleri recommendation-events.js üzerinden yönetilir.
  */
 
 (function () {
@@ -120,6 +120,11 @@
       storeState.isLoading === true ||
       storeState.loading === true;
 
+    const isRefreshing =
+      options.isRefreshing === true ||
+      storeState.isRefreshing === true ||
+      storeState.refreshing === true;
+
     const error = String(
       options.error ||
       storeState.error ||
@@ -139,12 +144,19 @@
       storeState.updatedAt ||
       "";
 
+    const generationMode =
+      options.generationMode ||
+      storeState.generationMode ||
+      "refresh";
+
     return {
       recommendations,
       isLoading,
+      isRefreshing,
       error,
       sourceCount,
-      generatedAt
+      generatedAt,
+      generationMode
     };
   }
 
@@ -264,40 +276,68 @@
   function renderRecommendationsPanel(options = {}) {
     const resolved = resolvePanelOptions(options);
     const recommendations = resolved.recommendations;
+    const hasRecommendations = recommendations.length > 0;
+    const hasSources = resolved.sourceCount > 0;
 
-    if (resolved.isLoading) {
+    if (resolved.isLoading && !hasRecommendations) {
       return renderLoadingRecommendations(resolved.sourceCount);
     }
 
-    if (resolved.error) {
+    if (resolved.error && !hasRecommendations) {
       return renderRecommendationsError(resolved.error);
     }
 
     return `
       <div class="rag-recommendations-panel">
-        <div class="rag-recommendation-hero">
-          <div class="rag-recommendation-hero-icon">
-            ${renderIcon("recommendation", "rag-icon-recommendation")}
-          </div>
-
-          <div class="rag-recommendation-hero-text">
-            <strong>Akıllı kaynak önerileri</strong>
-            <span>
-              Taranan kaynaklardan konu çıkarımı yapılarak araştırmayı genişletecek yeni kaynak fikirleri burada listelenir.
-            </span>
-          </div>
-        </div>
+        ${!hasSources && !hasRecommendations ? renderSmartRecommendationHero() : ""}
 
         <div class="rag-recommendation-count-line">
           ${renderCountLine(recommendations.length, resolved.sourceCount, resolved.generatedAt)}
         </div>
 
+        ${
+          resolved.isRefreshing && hasRecommendations
+            ? `
+              <div class="rag-recommendation-inline-status">
+                Mevcut öneriler yenileniyor.
+              </div>
+            `
+            : ""
+        }
+
+        ${
+          resolved.error && hasRecommendations
+            ? `
+              <div class="rag-recommendation-inline-status">
+                ${escapeHtml(resolved.error)}
+              </div>
+            `
+            : ""
+        }
+
         <div class="rag-recommendation-list">
           ${
-            recommendations.length
+            hasRecommendations
               ? recommendations.map(renderRecommendationCard).join("")
               : renderEmptyRecommendations(resolved.sourceCount)
           }
+        </div>
+      </div>
+    `;
+  }
+
+  function renderSmartRecommendationHero() {
+    return `
+      <div class="rag-recommendation-hero">
+        <div class="rag-recommendation-hero-icon">
+          ${renderIcon("recommendation", "rag-icon-recommendation")}
+        </div>
+
+        <div class="rag-recommendation-hero-text">
+          <strong>Akıllı kaynak önerileri</strong>
+          <span>
+            Taranan kaynaklardan konu çıkarımı yapılarak araştırmayı genişletecek yeni kaynak fikirleri burada listelenir.
+          </span>
         </div>
       </div>
     `;
@@ -396,7 +436,7 @@
   function renderEmptyRecommendations(sourceCount = 0) {
     const description =
       sourceCount > 0
-        ? "Mevcut kaynaklara göre yeni araştırma önerileri üretmek için üstteki öneri üret butonunu kullan."
+        ? "Kaynaklar hazır. Öneriler otomatik gelmediyse öneri oluştur butonunu kullan."
         : "Öneri üretmek için önce birkaç web sayfasını kaynaklara ekle.";
 
     return `
