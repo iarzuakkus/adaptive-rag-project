@@ -16,8 +16,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routes.ingest import router as ingest_router
-from routes.pdf import router as pdf_router
-from routes.query import router as query_router
 from routes.chat import router as chat_router
 from routes.sources import router as sources_router
 from routes.research import router as research_router
@@ -49,8 +47,6 @@ app.add_middleware(
 
 # Route bağlantıları
 app.include_router(ingest_router)
-app.include_router(pdf_router)
-app.include_router(query_router)
 app.include_router(chat_router)
 app.include_router(sources_router)
 app.include_router(research_router)
@@ -65,8 +61,6 @@ def root():
         "docs": "/docs",
         "modules": [
             "ingest",
-            "pdf",
-            "query",
             "chat",
             "sources",
             "research",
@@ -82,8 +76,6 @@ def health_check():
         "service": "adaptive-rag-backend",
         "modules": {
             "ingest": True,
-            "pdf": True,
-            "query": True,
             "chat": True,
             "sources": True,
             "research": True,
