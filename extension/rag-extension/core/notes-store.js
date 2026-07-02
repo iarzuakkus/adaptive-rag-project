@@ -698,6 +698,60 @@
     return null;
   }
 
+  function startNoteGeneration() {
+    const validationError = validateGenerateInput();
+
+    if (validationError) {
+      setState(
+        {
+          isGenerating: false,
+          error: validationError
+        },
+        {
+          persist: false
+        }
+      );
+
+      return {
+        success: false,
+        message: validationError
+      };
+    }
+
+    setState(
+      {
+        isGenerating: true,
+        error: null
+      },
+      {
+        persist: false
+      }
+    );
+
+    return {
+      success: true
+    };
+  }
+
+  function finishNoteGeneration(error = null) {
+    const errorMessage =
+      typeof error === "string" && error.trim()
+        ? error.trim()
+        : null;
+
+    setState(
+      {
+        isGenerating: false,
+        error: errorMessage
+      },
+      {
+        persist: false
+      }
+    );
+
+  return getState();
+}
+
   function generateMockNote() {
     const validationError = validateGenerateInput();
 

@@ -21,6 +21,7 @@ from routes.query import router as query_router
 from routes.chat import router as chat_router
 from routes.sources import router as sources_router
 from routes.research import router as research_router
+from routes.notes import router as notes_router
 
 
 app = FastAPI(
@@ -53,6 +54,7 @@ app.include_router(query_router)
 app.include_router(chat_router)
 app.include_router(sources_router)
 app.include_router(research_router)
+app.include_router(notes_router)
 
 
 @app.get("/")
@@ -68,6 +70,7 @@ def root():
             "chat",
             "sources",
             "research",
+            "notes",
         ],
     }
 
@@ -84,6 +87,7 @@ def health_check():
             "chat": True,
             "sources": True,
             "research": True,
+            "notes": True,
         },
     }
 

@@ -11,6 +11,7 @@
   - window kullanılmaz.
   - Mock veri üretmez.
   - Öneri üretme payload'ını kırpmaz; mode ve exclude alanlarını backend'e taşır.
+  - Not üretme isteğini /notes/generate endpoint'ine gönderir.
 */
 
 (function () {
@@ -28,9 +29,13 @@
   const CHAT_TIMEOUT_MS = 45000;
   const PDF_TIMEOUT_MS = 60000;
   const RECOMMENDATION_TIMEOUT_MS = 60000;
+  const NOTE_TIMEOUT_MS = 90000;
+
+  /* -------------------- URL Yardımcıları -------------------- */
 
   function buildUrl(baseUrl, endpoint) {
     const cleanBase = String(baseUrl || "").replace(/\/+$/, "");
+
     const cleanEndpoint = String(endpoint || "").startsWith("/")
       ? endpoint
       : `/${endpoint}`;
@@ -42,7 +47,11 @@
     const query = new URLSearchParams();
 
     Object.entries(params || {}).forEach(([key, value]) => {
-      if (value === undefined || value === null || value === "") {
+      if (
+        value === undefined ||
+        value === null ||
+        value === ""
+      ) {
         return;
       }
 
@@ -53,6 +62,8 @@
 
     return queryText ? `?${queryText}` : "";
   }
+
+  /* -------------------- İstek Yardımcıları -------------------- */
 
   function withTimeout(promise, timeoutMs, url) {
     return new Promise((resolve, reject) => {
@@ -77,7 +88,8 @@
   }
 
   async function fetchBackendUrl(url, options = {}) {
-    const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS;
+    const timeoutMs =
+      options.timeoutMs || DEFAULT_TIMEOUT_MS;
 
     const fetchOptions = {
       method: options.method || "GET",
@@ -87,7 +99,10 @@
       }
     };
 
-    if (options.body !== undefined && options.body !== null) {
+    if (
+      options.body !== undefined &&
+      options.body !== null
+    ) {
       fetchOptions.body = JSON.stringify(options.body);
     }
 
@@ -147,12 +162,17 @@
       try {
         return await fetchBackendUrl(url, options);
       } catch (error) {
-        console.error("[BACKEND CLIENT] Backend adresi başarısız:", {
-          url,
-          error: error?.message || error
-        });
+        console.error(
+          "[BACKEND CLIENT] Backend adresi başarısız:",
+          {
+            url,
+            error: error?.message || error
+          }
+        );
 
-        errors.push(`${url} -> ${error?.message || error}`);
+        errors.push(
+          `${url} -> ${error?.message || error}`
+        );
       }
     }
 
@@ -176,26 +196,47 @@
         data
       };
     } catch (error) {
-      console.error(`[BACKEND CLIENT] ${label} hatası:`, error);
+      console.error(
+        `[BACKEND CLIENT] ${label} hatası:`,
+        error
+      );
 
       return {
         success: false,
-        message: error?.message || `${label} işlemi başarısız oldu.`,
-        error: error?.message || `${label} işlemi başarısız oldu.`
+        message:
+          error?.message ||
+          `${label} işlemi başarısız oldu.`,
+        error:
+          error?.message ||
+          `${label} işlemi başarısız oldu.`
       };
     }
   }
 
+  /* -------------------- Genel Normalizasyon -------------------- */
+
   function safeArray(value) {
     return Array.isArray(value) ? value : [];
   }
+
+  function safeString(value, fallback = "") {
+    if (value === undefined || value === null) {
+      return fallback;
+    }
+
+    return String(value).trim();
+  }
+
+  /* -------------------- Öneri Payload -------------------- */
 
   function normalizeRecommendationMode(payload = {}) {
     const mode = String(
       payload.mode ||
       payload.generation_mode ||
       ""
-    ).trim().toLowerCase();
+    )
+      .trim()
+      .toLowerCase();
 
     if (mode === "expand") {
       return "expand";
@@ -209,20 +250,106 @@
 
     return {
       sources: safeArray(payload.sources),
-      source_count: Number(payload.source_count || payload.sourceCount || 0),
+      source_count: Number(
+        payload.source_count ||
+        payload.sourceCount ||
+        0
+      ),
       force: payload.force === true,
 
       mode,
       generation_mode: mode,
       reason: String(payload.reason || ""),
 
-      exclude_recommendations: safeArray(payload.exclude_recommendations),
-      exclude_urls: safeArray(payload.exclude_urls),
-      exclude_queries: safeArray(payload.exclude_queries),
-      exclude_titles: safeArray(payload.exclude_titles),
-      exclude_domains: safeArray(payload.exclude_domains)
+      exclude_recommendations: safeArray(
+        payload.exclude_recommendations
+      ),
+      exclude_urls: safeArray(
+        payload.exclude_urls
+      ),
+      exclude_queries: safeArray(
+        payload.exclude_queries
+      ),
+      exclude_titles: safeArray(
+        payload.exclude_titles
+      ),
+      exclude_domains: safeArray(
+        payload.exclude_domains
+      )
     };
   }
+
+  /* -------------------- Not Payload -------------------- */
+
+  function normalizeNoteType(payload = {}) {
+    const noteType = safeString(
+      payload.note_type ||
+      payload.noteType ||
+      "research_note"
+    ).toLowerCase();
+
+    const allowedTypes = new Set([
+      "research_note",
+      "lecture_note",
+      "summary_note"
+    ]);
+
+    if (allowedTypes.has(noteType)) {
+      return noteType;
+    }
+
+    return "research_note";
+  }
+
+  function buildNotePayload(payload = {}) {
+    const sources = safeArray(payload.sources);
+
+    const personalNotes = safeArray(
+      payload.personal_notes ||
+      payload.personalNotes
+    );
+
+    return {
+      note_type: normalizeNoteType(payload),
+
+      custom_title: safeString(
+        payload.custom_title ||
+        payload.customTitle
+      ),
+
+      language: safeString(
+        payload.language,
+        "tr"
+      ) || "tr",
+
+      sources,
+
+      personal_notes: personalNotes,
+
+      source_count: Number(
+        payload.source_count ||
+        payload.sourceCount ||
+        sources.length ||
+        0
+      ),
+
+      personal_note_count: Number(
+        payload.personal_note_count ||
+        payload.personalNoteCount ||
+        personalNotes.length ||
+        0
+      ),
+
+      session_id: safeString(
+        payload.session_id ||
+        payload.sessionId
+      ),
+
+      force: payload.force === true
+    };
+  }
+
+  /* -------------------- Ingest -------------------- */
 
   function sendIngest(payload) {
     return safeRequest("/ingest", () =>
@@ -234,6 +361,8 @@
     );
   }
 
+  /* -------------------- Chat -------------------- */
+
   function sendChat(payload) {
     return safeRequest("/chat", () =>
       requestBackend("/chat", {
@@ -244,6 +373,8 @@
     );
   }
 
+  /* -------------------- PDF -------------------- */
+
   function sendPdfUrl(payload) {
     return safeRequest("/pdf", () =>
       requestBackend("/pdf", {
@@ -253,6 +384,8 @@
       })
     );
   }
+
+  /* -------------------- Kaynaklar -------------------- */
 
   function getSources() {
     return safeRequest("/sources", () =>
@@ -276,9 +409,12 @@
         throw new Error("sourceId boş olamaz.");
       }
 
-      return requestBackend(`/sources/${encodeURIComponent(sourceId)}`, {
-        method: "GET"
-      });
+      return requestBackend(
+        `/sources/${encodeURIComponent(sourceId)}`,
+        {
+          method: "GET"
+        }
+      );
     });
   }
 
@@ -288,9 +424,12 @@
         throw new Error("sourceId boş olamaz.");
       }
 
-      return requestBackend(`/sources/${encodeURIComponent(sourceId)}`, {
-        method: "DELETE"
-      });
+      return requestBackend(
+        `/sources/${encodeURIComponent(sourceId)}`,
+        {
+          method: "DELETE"
+        }
+      );
     });
   }
 
@@ -300,16 +439,21 @@
         throw new Error("sourceId boş olamaz.");
       }
 
-      return requestBackend(`/sources/${encodeURIComponent(sourceId)}/chunks`, {
-        method: "GET"
-      });
+      return requestBackend(
+        `/sources/${encodeURIComponent(sourceId)}/chunks`,
+        {
+          method: "GET"
+        }
+      );
     });
   }
 
   function getChunkDetail(sourceId, chunkId) {
     return safeRequest("chunk detail", () => {
       if (!sourceId || !chunkId) {
-        throw new Error("sourceId ve chunkId boş olamaz.");
+        throw new Error(
+          "sourceId ve chunkId boş olamaz."
+        );
       }
 
       return requestBackend(
@@ -321,33 +465,72 @@
     });
   }
 
+  /* -------------------- Öneriler -------------------- */
+
   function getRecommendations(payload = {}) {
     const queryString = buildQueryString({
-      source_count: payload.source_count || payload.sourceCount || "",
+      source_count:
+        payload.source_count ||
+        payload.sourceCount ||
+        "",
       mode: "refresh"
     });
 
-    return safeRequest("/research/recommendations GET", () =>
-      requestBackend(`/research/recommendations${queryString}`, {
-        method: "GET",
-        timeoutMs: DEFAULT_TIMEOUT_MS
-      })
+    return safeRequest(
+      "/research/recommendations GET",
+      () =>
+        requestBackend(
+          `/research/recommendations${queryString}`,
+          {
+            method: "GET",
+            timeoutMs: DEFAULT_TIMEOUT_MS
+          }
+        )
     );
   }
 
-  function generateRecommendations(payload) {
-    const requestPayload = buildRecommendationPayload(payload);
+  function generateRecommendations(payload = {}) {
+    const requestPayload =
+      buildRecommendationPayload(payload);
 
-    console.log("[BACKEND CLIENT] Recommendation payload:", requestPayload);
+    console.log(
+      "[BACKEND CLIENT] Recommendation payload:",
+      requestPayload
+    );
 
-    return safeRequest("/research/recommendations POST", () =>
-      requestBackend("/research/recommendations", {
-        method: "POST",
-        body: requestPayload,
-        timeoutMs: RECOMMENDATION_TIMEOUT_MS
-      })
+    return safeRequest(
+      "/research/recommendations POST",
+      () =>
+        requestBackend("/research/recommendations", {
+          method: "POST",
+          body: requestPayload,
+          timeoutMs: RECOMMENDATION_TIMEOUT_MS
+        })
     );
   }
+
+  /* -------------------- Notlar -------------------- */
+
+  function generateNote(payload = {}) {
+    const requestPayload = buildNotePayload(payload);
+
+    console.log(
+      "[BACKEND CLIENT] Note payload:",
+      requestPayload
+    );
+
+    return safeRequest(
+      "/notes/generate POST",
+      () =>
+        requestBackend("/notes/generate", {
+          method: "POST",
+          body: requestPayload,
+          timeoutMs: NOTE_TIMEOUT_MS
+        })
+    );
+  }
+
+  /* -------------------- Dış API -------------------- */
 
   self.AdaptiveRagBackendClient = {
     __moduleName: "backend-client",
@@ -355,13 +538,17 @@
     sendIngest,
     sendChat,
     sendPdfUrl,
+
     getSources,
     getSourceTimeline,
     getSourceDetail,
     deleteSource,
     getSourceChunks,
     getChunkDetail,
+
     getRecommendations,
-    generateRecommendations
+    generateRecommendations,
+
+    generateNote
   };
 })();
