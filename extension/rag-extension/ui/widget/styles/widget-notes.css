@@ -1,178 +1,1135 @@
 /*
   Dosya: widget-notes.css
 
-  Görev:
-  - Notlar sekmesinin görünümünü yönetir.
-  - Genel özet alanı, alıntılar, okuma önerileri ve PDF/Word dışa aktarım alanı burada tasarlanır.
+  Notlar sekmesi:
+  - Kompakt widget uyumlu
+  - Yana scroll engelli
+  - Mask-image tabanlı gradient ikon sistemi
+  - Daha okunur tipografi
+  - Kaynak seçimi / checkbox düzenli
+  - Renk sistemi: #ff001f -> #eea7ff
 */
 
-/* Notlar sekmesi ana düzeni */
 .rag-notes-layout {
+  --rag-note-pink: #eea7ff;
+  --rag-note-red: #ff001f;
+  --rag-note-gradient: linear-gradient(135deg, #ff001f 0%, #ff3f7a 44%, #eea7ff 100%);
+  --rag-note-gradient-soft: linear-gradient(135deg, rgba(255, 0, 31, 0.18), rgba(238, 167, 255, 0.1));
+  --rag-note-icon-gradient: linear-gradient(135deg, #ff001f 0%, #ff4f86 42%, #eea7ff 100%);
+  --rag-note-icon-gradient-soft: linear-gradient(135deg, rgba(255, 0, 31, 0.28), rgba(238, 167, 255, 0.18));
+  --rag-note-text: var(--rag-color-text, #f8f3ff);
+  --rag-note-muted: var(--rag-color-text-muted, rgba(248, 243, 255, 0.68));
+  --rag-note-soft: var(--rag-color-text-soft, rgba(248, 243, 255, 0.5));
+  --rag-note-border: rgba(238, 167, 255, 0.14);
+
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Her not bloğu */
-.rag-note-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.rag-notes-layout,
+.rag-notes-layout * {
+  box-sizing: border-box;
+  min-width: 0;
 }
 
-/* Genel özet textarea */
-.rag-note-textarea {
-  min-height: 95px;
-  max-height: 180px;
-  resize: vertical;
-  padding: 9px 10px;
-  font-size: 10.8px;
-  line-height: 1.42;
+.rag-notes-layout button,
+.rag-notes-layout textarea {
+  font-family: inherit;
 }
 
-/* Özeti kaydet butonu */
-#ragSaveSummaryBtn {
-  align-self: flex-end;
+/* Mask tabanlı gerçek gradient ikon sistemi */
+.rag-mask-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: var(--rag-icon-size, 13px);
+  height: var(--rag-icon-size, 13px);
+  background: var(--rag-icon-fill, var(--rag-note-icon-gradient));
+  -webkit-mask-image: var(--rag-icon-url);
+  mask-image: var(--rag-icon-url);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  pointer-events: none;
 }
 
-/* Alıntı listesi */
-.rag-quote-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* Alıntı kartı */
-.rag-quote-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* Ortak kart */
+.rag-notes-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid var(--rag-note-border);
   background:
-    radial-gradient(circle at top left, rgba(238, 167, 255, 0.08), transparent 34%),
-    rgba(255, 255, 255, 0.03);
+    radial-gradient(circle at top left, rgba(238, 167, 255, 0.07), transparent 35%),
+    radial-gradient(circle at bottom right, rgba(255, 0, 31, 0.065), transparent 38%),
+    rgba(255, 255, 255, 0.032);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 10px 22px rgba(0, 0, 0, 0.16);
+  overflow: hidden;
 }
 
-.rag-quote-card p {
+.rag-notes-card-title {
   margin: 0;
-  font-size: 10.5px;
-  line-height: 1.42;
-  color: var(--rag-color-text-muted);
+  font-size: 12.4px;
+  line-height: 1.25;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  color: var(--rag-note-text);
 }
 
-/* Alıntının kaynak bilgisi */
-.rag-quote-source {
+.rag-notes-card-desc {
+  margin: 3px 0 0;
+  font-size: 9.6px;
+  line-height: 1.45;
+  font-weight: 430;
+  color: var(--rag-note-muted);
+}
+
+/* Not Merkezi */
+.rag-note-center-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rag-note-stats-grid {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.rag-note-stat {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 23px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 7px 6px;
+  border-radius: 13px;
+  border: 1px solid rgba(238, 167, 255, 0.1);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
+    rgba(0, 0, 0, 0.12);
+}
+
+.rag-note-stat-icon {
+  width: 23px;
+  height: 23px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(238, 167, 255, 0.17);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(238, 167, 255, 0.22), transparent 54%),
+    linear-gradient(135deg, rgba(255, 0, 31, 0.22), rgba(238, 167, 255, 0.15));
+  box-shadow:
+    0 0 10px rgba(255, 0, 31, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.rag-note-stat-img {
+  --rag-icon-size: 12px;
+  --rag-icon-fill: var(--rag-note-icon-gradient);
+}
+
+.rag-note-stat-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rag-note-stat-copy strong {
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 760;
+  color: #ffffff;
+}
+
+.rag-note-stat-copy span {
+  min-width: 0;
+  font-size: 8.4px;
+  line-height: 1.18;
+  font-weight: 430;
+  color: var(--rag-note-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Kaynak seç ve not oluştur */
+.rag-note-create-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.rag-note-create-head {
+  min-width: 0;
+}
+
+.rag-note-create-grid {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  overflow-x: hidden;
+}
+
+.rag-note-source-panel,
+.rag-note-action-panel {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(238, 167, 255, 0.12);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.014)),
+    rgba(0, 0, 0, 0.14);
+  overflow-x: hidden;
+}
+
+.rag-note-panel-head {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+
+.rag-note-panel-head.vertical {
+  flex-direction: row;
+}
+
+.rag-note-panel-head h4 {
+  min-width: 0;
+  margin: 0;
+  font-size: 10.6px;
+  line-height: 1.2;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  color: var(--rag-note-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rag-note-source-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.rag-note-mini-action {
+  appearance: none;
+  min-height: 23px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(238, 167, 255, 0.16);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--rag-note-muted);
+  font-size: 8.3px;
+  line-height: 1;
+  font-weight: 560;
+  cursor: pointer;
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.rag-note-mini-action:hover {
+  color: #ffffff;
+  border-color: rgba(238, 167, 255, 0.4);
+  background: rgba(238, 167, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Kaynak listesi */
+.rag-note-source-list {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 146px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+
+.rag-note-source-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.rag-note-source-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(238, 167, 255, 0.24);
+}
+
+.rag-note-source-row {
+  appearance: none;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 39px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 19px;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 7px;
+  border-radius: 11px;
+  border: 1px solid rgba(238, 167, 255, 0.12);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.014)),
+    rgba(255, 255, 255, 0.024);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.rag-note-source-row:hover {
+  transform: translateY(-1px);
+  border-color: rgba(238, 167, 255, 0.3);
+  background:
+    radial-gradient(circle at left, rgba(255, 0, 31, 0.08), transparent 42%),
+    rgba(255, 255, 255, 0.038);
+}
+
+.rag-note-source-row.is-selected {
+  border-color: rgba(238, 167, 255, 0.36);
+  background:
+    radial-gradient(circle at left, rgba(255, 0, 31, 0.11), transparent 42%),
+    linear-gradient(135deg, rgba(238, 167, 255, 0.05), rgba(255, 0, 31, 0.025)),
+    rgba(255, 255, 255, 0.034);
+  box-shadow:
+    0 0 0 1px rgba(238, 167, 255, 0.035),
+    0 0 12px rgba(255, 0, 31, 0.07);
+}
+
+/* Checkbox */
+.rag-note-check {
+  width: 15px;
+  height: 15px;
+  border-radius: 5px;
+  border: 1px solid rgba(238, 167, 255, 0.34);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
+    rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rag-note-check.checked {
+  border-color: rgba(238, 167, 255, 0.78);
+  background: var(--rag-note-gradient);
+  box-shadow:
+    0 0 10px rgba(255, 0, 31, 0.3),
+    0 0 10px rgba(238, 167, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.rag-note-check-icon {
+  --rag-icon-size: 8px;
+  --rag-icon-fill: #ffffff;
+}
+
+.rag-note-source-main {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-top: 7px;
-  border-top: 1px solid rgba(238, 167, 255, 0.1);
+  overflow: hidden;
 }
 
-.rag-quote-source strong {
-  font-size: 10.5px;
-  color: var(--rag-color-text);
-  font-weight: 800;
-  line-height: 1.3;
+.rag-note-source-title {
+  min-width: 0;
+  display: block;
+  font-size: 9.9px;
+  line-height: 1.25;
+  font-weight: 560;
+  color: var(--rag-note-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.rag-quote-source span {
-  font-size: 9.8px;
-  color: var(--rag-color-text-soft);
+.rag-note-source-meta {
+  min-width: 0;
+  display: block;
+  font-size: 8.4px;
+  line-height: 1.22;
+  font-weight: 420;
+  color: var(--rag-note-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Öneri listesi */
-.rag-recommendation-list {
+.rag-note-source-type-icon {
+  width: 19px;
+  height: 19px;
+  border-radius: 7px;
+  border: 1px solid rgba(238, 167, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(255, 0, 31, 0.2), rgba(238, 167, 255, 0.13));
+  box-shadow: 0 0 10px rgba(255, 0, 31, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rag-note-source-img {
+  --rag-icon-size: 10px;
+  --rag-icon-fill: var(--rag-note-icon-gradient);
+}
+
+/* Kaynak yok */
+.rag-note-empty-source {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px dashed rgba(238, 167, 255, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rag-note-empty-source strong {
+  font-size: 10.3px;
+  font-weight: 650;
+  color: var(--rag-note-text);
+}
+
+.rag-note-empty-source span {
+  font-size: 9.3px;
+  line-height: 1.35;
+  font-weight: 420;
+  color: var(--rag-note-muted);
+}
+
+/* Not tipi */
+.rag-note-selected-count {
+  font-size: 9.2px;
+  font-weight: 620;
+  color: var(--rag-note-pink);
+  white-space: nowrap;
+}
+
+.rag-note-type-list {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.rag-note-type-btn {
+  appearance: none;
+  min-width: 0;
+  min-height: 31px;
+  padding: 6px 4px;
+  border-radius: 11px;
+  border: 1px solid rgba(238, 167, 255, 0.14);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--rag-note-muted);
+  font-size: 9.3px;
+  line-height: 1;
+  font-weight: 540;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.rag-note-type-btn:hover {
+  transform: translateY(-1px);
+  color: #ffffff;
+  border-color: rgba(238, 167, 255, 0.28);
+}
+
+.rag-note-type-btn.is-active {
+  color: #ffffff;
+  font-weight: 650;
+  border-color: rgba(238, 167, 255, 0.56);
+  background:
+    linear-gradient(135deg, rgba(255, 0, 31, 0.35), rgba(238, 167, 255, 0.2)),
+    rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 0 0 1px rgba(238, 167, 255, 0.07),
+    0 10px 20px rgba(255, 0, 31, 0.12);
+}
+
+/* Ana butonlar */
+.rag-note-generate-btn,
+.rag-note-export-btn,
+.rag-note-save-btn {
+  appearance: none;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 35px;
+  padding: 8px 10px;
+  border-radius: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 10.2px;
+  line-height: 1.05;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.rag-note-generate-btn {
+  border: 0;
+  color: #ffffff;
+  background: var(--rag-note-gradient);
+  box-shadow:
+    0 0 0 1px rgba(238, 167, 255, 0.14),
+    0 11px 22px rgba(255, 0, 31, 0.25),
+    0 0 20px rgba(238, 167, 255, 0.14);
+}
+
+.rag-note-generate-btn:hover:not(:disabled),
+.rag-note-save-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(238, 167, 255, 0.18),
+    0 14px 26px rgba(255, 0, 31, 0.32),
+    0 0 28px rgba(238, 167, 255, 0.2);
+}
+
+.rag-note-generate-btn:disabled,
+.rag-note-export-btn:disabled,
+.rag-note-save-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.rag-note-export-btn {
+  margin-top: 7px;
+  color: var(--rag-note-pink);
+  border: 1px solid rgba(238, 167, 255, 0.22);
+  background:
+    linear-gradient(135deg, rgba(238, 167, 255, 0.052), rgba(255, 0, 31, 0.032)),
+    rgba(255, 255, 255, 0.025);
+}
+
+.rag-note-export-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(238, 167, 255, 0.38);
+}
+
+.rag-note-btn-icon {
+  --rag-icon-size: 12px;
+  --rag-icon-fill: #ffffff;
+}
+
+.rag-note-export-btn .rag-note-btn-icon {
+  --rag-icon-size: 12px;
+  --rag-icon-fill: var(--rag-note-icon-gradient);
+}
+
+/* Taslak not */
+.rag-note-draft-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rag-note-draft-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rag-note-draft-icon {
+  width: 23px;
+  height: 23px;
+  border-radius: 8px;
+  border: 1px solid rgba(238, 167, 255, 0.15);
+  background:
+    linear-gradient(135deg, rgba(255, 0, 31, 0.2), rgba(238, 167, 255, 0.13));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rag-note-card-img {
+  --rag-icon-size: 11px;
+  --rag-icon-fill: var(--rag-note-icon-gradient);
+}
+
+.rag-note-draft-input-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+}
+
+.rag-note-draft-textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 68px;
+  max-height: 142px;
+  resize: vertical;
+  padding: 9px 10px;
+  border-radius: 13px;
+  border: 1px solid rgba(238, 167, 255, 0.15);
+  outline: none;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.018)),
+    rgba(0, 0, 0, 0.16);
+  color: var(--rag-note-text);
+  font-size: 10.2px;
+  line-height: 1.45;
+  font-weight: 420;
+}
+
+.rag-note-draft-textarea::placeholder {
+  color: rgba(248, 243, 255, 0.42);
+}
+
+.rag-note-save-btn {
+  width: auto;
+  min-width: 82px;
+  align-self: flex-end;
+  border: 0;
+  color: #ffffff;
+  background: var(--rag-note-gradient);
+  box-shadow:
+    0 10px 20px rgba(255, 0, 31, 0.22),
+    0 0 17px rgba(238, 167, 255, 0.1);
+}
+
+.rag-note-draft-footer {
+  min-height: 12px;
+  font-size: 9px;
+  font-weight: 420;
+  color: var(--rag-note-soft);
+}
+
+/* Kaydedilmiş notlar */
+.rag-saved-notes-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.rag-saved-notes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rag-note-muted-link {
+  font-size: 9.3px;
+  font-weight: 560;
+  color: var(--rag-note-pink);
+}
+
+.rag-saved-notes-list {
   display: flex;
   flex-direction: column;
   gap: 7px;
 }
 
-/* Tek öneri kartı */
-.rag-recommendation-item {
-  font-size: 10.5px;
-  line-height: 1.42;
-  color: var(--rag-color-text-muted);
-  border-left: 2px solid var(--rag-color-secondary);
+.rag-saved-note-item {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 13px;
+  border: 1px solid rgba(238, 167, 255, 0.11);
   background:
-    linear-gradient(90deg, rgba(238, 167, 255, 0.07), rgba(255, 0, 31, 0.03)),
-    rgba(255, 255, 255, 0.03);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.014)),
+    rgba(0, 0, 0, 0.13);
+  overflow: hidden;
 }
 
-/* Dışa aktar buton alanı */
-.rag-export-actions {
+.rag-saved-note-mark {
+  position: absolute;
+  left: 5px;
+  top: 12px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--rag-note-red);
+  box-shadow: 0 0 12px rgba(255, 0, 31, 0.5);
+}
+
+.rag-saved-note-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 10px;
+  border: 1px solid rgba(238, 167, 255, 0.14);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(238, 167, 255, 0.18), transparent 56%),
+    linear-gradient(135deg, rgba(255, 0, 31, 0.18), rgba(238, 167, 255, 0.12));
   display: flex;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
+}
+
+.rag-saved-note-img {
+  --rag-icon-size: 12px;
+  --rag-icon-fill: var(--rag-note-icon-gradient);
+}
+
+.rag-saved-note-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rag-saved-note-content h4 {
+  margin: 0;
+  min-width: 0;
+  font-size: 10.2px;
+  line-height: 1.28;
+  font-weight: 650;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rag-saved-note-content p {
+  margin: 0;
+  font-size: 9.1px;
+  line-height: 1.38;
+  font-weight: 420;
+  color: var(--rag-note-muted);
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.rag-saved-note-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
-  margin-top: 0;
+  font-size: 8.4px;
+  line-height: 1.2;
+  font-weight: 420;
+  color: var(--rag-note-soft);
 }
 
-.rag-export-actions .rag-secondary-btn {
-  min-width: 68px;
+.rag-saved-note-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 
-/* PDF / Word açıklaması */
-.rag-note-panel .rag-small-info {
-  margin-top: 0;
+.rag-note-meta-icon {
+  --rag-icon-size: 9px;
+  --rag-icon-fill: rgba(238, 167, 255, 0.72);
 }
 
-/* Notlar sekmesindeki link butonu */
-.rag-quote-card .rag-link-btn {
-  align-self: flex-start;
+.rag-saved-note-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rag-saved-note-action {
+  appearance: none;
+  min-width: 39px;
+  min-height: 26px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(238, 167, 255, 0.13);
+  background: rgba(255, 255, 255, 0.034);
+  color: var(--rag-note-muted);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 540;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.rag-saved-note-action-img {
+  --rag-icon-size: 10px;
+  --rag-icon-fill: var(--rag-note-icon-gradient);
+}
+
+.rag-saved-note-action.danger .rag-saved-note-action-img {
+  --rag-icon-fill: linear-gradient(135deg, #ff001f 0%, #ff7b92 100%);
+}
+
+.rag-saved-note-action:hover {
+  transform: translateY(-1px);
+  color: #ffffff;
+  border-color: rgba(238, 167, 255, 0.3);
+}
+
+.rag-saved-note-action.accent {
+  color: var(--rag-note-pink);
+  border-color: rgba(238, 167, 255, 0.24);
+}
+
+.rag-saved-note-action.danger {
+  color: #ff4b63;
+  border-color: rgba(255, 0, 31, 0.32);
+}
+
+.rag-saved-note-action.danger:hover {
+  color: #ffffff;
+  background: rgba(255, 0, 31, 0.12);
+}
+
+/* Boş durum */
+.rag-note-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 15px 10px;
+  text-align: center;
+  border-radius: 13px;
+  border: 1px dashed rgba(238, 167, 255, 0.2);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.rag-note-empty-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 9px;
+  border: 1px solid rgba(238, 167, 255, 0.14);
+  background:
+    linear-gradient(135deg, rgba(255, 0, 31, 0.18), rgba(238, 167, 255, 0.11));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rag-note-empty-img {
+  --rag-icon-size: 11px;
+  --rag-icon-fill: var(--rag-note-icon-gradient);
+}
+
+.rag-note-empty-state strong {
+  font-size: 10.4px;
+  font-weight: 650;
+  color: #ffffff;
+}
+
+.rag-note-empty-state span {
+  max-width: 220px;
+  font-size: 9.3px;
+  line-height: 1.38;
+  font-weight: 420;
+  color: var(--rag-note-muted);
+}
+
+/* Alt bilgi */
+.rag-note-info-strip {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 9px;
+  border-radius: 14px;
+  border: 1px solid rgba(238, 167, 255, 0.28);
+  background:
+    radial-gradient(circle at left, rgba(255, 0, 31, 0.11), transparent 42%),
+    rgba(255, 255, 255, 0.033);
+  overflow: hidden;
+}
+
+.rag-note-info-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(238, 167, 255, 0.22);
+  background:
+    linear-gradient(135deg, rgba(255, 0, 31, 0.18), rgba(238, 167, 255, 0.11));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rag-note-info-img {
+  --rag-icon-size: 11px;
+  --rag-icon-fill: var(--rag-note-icon-gradient);
+}
+
+.rag-note-info-strip strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 9.8px;
+  line-height: 1.3;
+  font-weight: 610;
+  color: #ffffff;
+}
+
+.rag-note-info-strip span {
+  display: block;
+  font-size: 9px;
+  line-height: 1.35;
+  font-weight: 420;
+  color: var(--rag-note-muted);
+}
+
+/* Hata */
+.rag-note-error {
+  padding: 8px 9px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 0, 31, 0.35);
+  background: rgba(255, 0, 31, 0.1);
+  color: #ffb7c6;
+  font-size: 9.5px;
+  line-height: 1.35;
+  font-weight: 520;
 }
 
 /* Eski class desteği */
+.rag-note-panel,
 .rag-notes-block {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
-.rag-note-card div {
-  margin-top: 8px;
+.rag-note-textarea {
+  width: 100%;
+  min-height: 95px;
+  max-height: 180px;
+  resize: vertical;
+  padding: 9px 10px;
+  font-size: 10.6px;
+  line-height: 1.42;
+  font-weight: 420;
+}
+
+#ragSaveSummaryBtn {
+  align-self: flex-end;
+}
+
+/* Kişisel not seçme paneli */
+
+.rag-note-personal-panel {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(238, 167, 255, 0.12);
+  background:
+    radial-gradient(circle at top left, rgba(238, 167, 255, 0.055), transparent 42%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.014)),
+    rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+}
+
+.rag-note-personal-list {
+  width: 100%;
+  min-width: 0;
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 10.5px;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 145px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
 }
 
-.rag-note-card span {
-  color: var(--rag-color-text-muted);
+.rag-note-personal-list::-webkit-scrollbar {
+  width: 4px;
 }
 
-.rag-note-card a {
-  color: var(--rag-color-secondary);
-  text-decoration: none;
-  font-weight: 700;
+.rag-note-personal-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(238, 167, 255, 0.24);
 }
 
-.rag-recommendation-card h4 {
-  margin: 0 0 6px;
-  font-size: 11.5px;
-  color: var(--rag-color-text);
+.rag-note-personal-row {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 29px;
+  align-items: center;
+  gap: 7px;
+  padding: 7px;
+  border-radius: 12px;
+  border: 1px solid rgba(238, 167, 255, 0.13);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.014)),
+    rgba(255, 255, 255, 0.024);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.13);
+  overflow: hidden;
 }
 
-/* Mobil uyum */
-@media (max-width: 540px) {
-  .rag-notes-layout {
-    gap: 9px;
-  }
+.rag-note-personal-row.is-selected {
+  border-color: rgba(238, 167, 255, 0.38);
+  background:
+    radial-gradient(circle at left, rgba(255, 0, 31, 0.12), transparent 43%),
+    linear-gradient(135deg, rgba(238, 167, 255, 0.06), rgba(255, 0, 31, 0.026)),
+    rgba(255, 255, 255, 0.034);
+  box-shadow:
+    0 0 0 1px rgba(238, 167, 255, 0.035),
+    0 0 16px rgba(255, 0, 31, 0.075);
+}
 
-  .rag-note-textarea {
-    min-height: 90px;
-    font-size: 10.5px;
-    padding: 8px 9px;
-  }
+.rag-note-personal-select {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 17px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  overflow: hidden;
+}
 
-  #ragSaveSummaryBtn {
-    width: 100%;
-  }
+.rag-note-personal-select .rag-note-source-main {
+  min-width: 0;
+  overflow: hidden;
+}
 
-  .rag-export-actions {
-    width: 100%;
-  }
+.rag-note-personal-select .rag-note-source-title {
+  display: block;
+  max-width: 100%;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 10.2px;
+  line-height: 1.15;
+  font-weight: 620;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  .rag-export-actions .rag-secondary-btn {
-    flex: 1;
-  }
+.rag-note-personal-select .rag-note-source-meta {
+  display: block;
+  max-width: 100%;
+  margin-top: 3px;
+  color: rgba(248, 243, 255, 0.56);
+  font-size: 9px;
+  line-height: 1.2;
+  font-weight: 420;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rag-note-personal-delete {
+  appearance: none;
+  width: 29px;
+  height: 29px;
+  min-width: 29px;
+  min-height: 29px;
+  padding: 0;
+  margin: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 0, 31, 0.24);
+  background:
+    linear-gradient(135deg, rgba(255, 0, 31, 0.1), rgba(255, 255, 255, 0.018)),
+    rgba(255, 255, 255, 0.028);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.rag-note-personal-delete:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 0, 31, 0.44);
+  background:
+    linear-gradient(135deg, rgba(255, 0, 31, 0.18), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.032);
+  box-shadow: 0 0 14px rgba(255, 0, 31, 0.12);
+}
+
+.rag-note-personal-delete-img {
+  --rag-icon-size: 12px;
+  --rag-icon-fill: linear-gradient(135deg, #ff001f 0%, #ff7b92 100%);
 }

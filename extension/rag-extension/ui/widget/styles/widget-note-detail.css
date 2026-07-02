@@ -1,0 +1,509 @@
+/*
+  Dosya: widget-note-detail.css
+
+  Not detay ekranı:
+  - Not detay sayfası
+  - Geri dön butonu
+  - Başlık düzenleme
+  - Kişisel notlar
+  - Özet, ana konular, çıkarımlar ve kaynak notları
+  - En altta dışa aktarma ve silme işlemleri
+  - Mask-image tabanlı gradient ikon sistemi
+*/
+
+.rag-note-detail-card {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  overflow: hidden;
+}
+
+/* Üst alan */
+
+.rag-note-detail-top {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(238, 167, 255, 0.08);
+}
+
+.rag-note-back-btn {
+  appearance: none;
+  min-width: 52px;
+  min-height: 28px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(238, 167, 255, 0.18);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.045),
+      rgba(255, 255, 255, 0.014)
+    ),
+    rgba(0, 0, 0, 0.13);
+  color: rgba(255, 255, 255, 0.92);
+  font-family: inherit;
+  font-size: 9.4px;
+  line-height: 1;
+  font-weight: 560;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.rag-note-back-btn:hover {
+  transform: translateY(-1px);
+  color: #ffffff;
+  border-color: rgba(238, 167, 255, 0.36);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(238, 167, 255, 0.09),
+      rgba(255, 0, 31, 0.035)
+    ),
+    rgba(255, 255, 255, 0.035);
+}
+
+/* Not başlığı */
+
+.rag-note-detail-title-row {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+}
+
+.rag-note-detail-icon {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(238, 167, 255, 0.16);
+  background:
+    radial-gradient(
+      circle at 30% 20%,
+      rgba(238, 167, 255, 0.2),
+      transparent 56%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 0, 31, 0.17),
+      rgba(238, 167, 255, 0.11)
+    );
+  box-shadow:
+    0 0 12px rgba(255, 0, 31, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rag-note-detail-img {
+  --rag-icon-size: 15px;
+  --rag-icon-fill: var(--rag-note-icon-gradient);
+}
+
+.rag-note-detail-title-row > div:last-child {
+  min-width: 0;
+}
+
+.rag-note-detail-title-row h3 {
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
+  color: #ffffff;
+  font-size: 12.4px;
+  line-height: 1.25;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rag-note-detail-title-row p {
+  margin: 3px 0 0;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--rag-note-muted);
+  font-size: 9.2px;
+  line-height: 1.35;
+  font-weight: 420;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Başlık düzenleme */
+
+.rag-note-detail-title-edit {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+}
+
+.rag-note-detail-title-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 33px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(238, 167, 255, 0.16);
+  outline: none;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.045),
+      rgba(255, 255, 255, 0.014)
+    ),
+    rgba(0, 0, 0, 0.15);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 10.6px;
+  line-height: 1.2;
+  font-weight: 520;
+  box-sizing: border-box;
+}
+
+.rag-note-detail-title-input::placeholder {
+  color: rgba(248, 243, 255, 0.38);
+}
+
+.rag-note-detail-title-input:focus {
+  border-color: rgba(238, 167, 255, 0.44);
+  box-shadow:
+    0 0 0 1px rgba(238, 167, 255, 0.08),
+    0 0 16px rgba(255, 0, 31, 0.08);
+}
+
+/* Detay bölümleri */
+
+.rag-note-detail-section {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 13px;
+  border: 1px solid rgba(238, 167, 255, 0.1);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.035),
+      rgba(255, 255, 255, 0.012)
+    ),
+    rgba(255, 255, 255, 0.024);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.rag-note-detail-section.is-user-note {
+  border-color: rgba(238, 167, 255, 0.18);
+  background:
+    radial-gradient(
+      circle at left,
+      rgba(255, 0, 31, 0.08),
+      transparent 42%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(238, 167, 255, 0.045),
+      rgba(255, 255, 255, 0.014)
+    ),
+    rgba(255, 255, 255, 0.028);
+}
+
+.rag-note-detail-section.is-user-note h4::after {
+  content: "Kişisel not";
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(238, 167, 255, 0.18);
+  background: rgba(238, 167, 255, 0.055);
+  color: var(--rag-note-pink);
+  font-size: 7.8px;
+  line-height: 1;
+  font-weight: 580;
+  vertical-align: middle;
+}
+
+.rag-note-detail-section h4 {
+  margin: 0 0 7px;
+  color: #ffffff;
+  font-size: 10.7px;
+  line-height: 1.2;
+  font-weight: 620;
+}
+
+.rag-note-detail-text {
+  margin: 0;
+  max-width: 100%;
+  color: var(--rag-note-muted);
+  font-size: 9.7px;
+  line-height: 1.5;
+  font-weight: 420;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.rag-note-detail-empty-text {
+  color: rgba(248, 243, 255, 0.48);
+  font-style: italic;
+}
+
+/* Ana konu blokları */
+
+.rag-note-topic-block {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rag-note-topic-block + .rag-note-topic-block {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(238, 167, 255, 0.08);
+}
+
+.rag-note-topic-block h5 {
+  margin: 0;
+  color: var(--rag-note-pink);
+  font-size: 10px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.rag-note-detail-list {
+  margin: 0;
+  padding-left: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rag-note-detail-list li {
+  max-width: 100%;
+  color: var(--rag-note-muted);
+  font-size: 9.6px;
+  line-height: 1.45;
+  font-weight: 420;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Kaynak ve kişisel not kartları */
+
+.rag-note-source-note-list {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.rag-note-source-note {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 11px;
+  border: 1px solid rgba(238, 167, 255, 0.08);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.032),
+      rgba(255, 255, 255, 0.012)
+    ),
+    rgba(255, 255, 255, 0.028);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.rag-note-source-note strong {
+  max-width: 100%;
+  color: #ffffff;
+  font-size: 9.8px;
+  line-height: 1.25;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rag-note-source-note span {
+  max-width: 100%;
+  color: var(--rag-note-muted);
+  font-size: 9.3px;
+  line-height: 1.4;
+  font-weight: 420;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Alt işlem alanı */
+
+.rag-note-detail-bottom-actions {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 11px;
+  border-top: 1px solid rgba(238, 167, 255, 0.12);
+  box-sizing: border-box;
+}
+
+.rag-note-detail-icon-action {
+  appearance: none;
+  width: auto;
+  min-width: 78px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 11px;
+  margin: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(238, 167, 255, 0.18);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.05),
+      rgba(255, 255, 255, 0.014)
+    ),
+    rgba(0, 0, 0, 0.13);
+  color: rgba(248, 243, 255, 0.82);
+  font-family: inherit;
+  font-size: 9.2px;
+  line-height: 1;
+  font-weight: 540;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    transform 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.rag-note-detail-icon-action.export {
+  min-width: 96px;
+  color: var(--rag-note-pink);
+  border-color: rgba(238, 167, 255, 0.28);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(238, 167, 255, 0.09),
+      rgba(255, 0, 31, 0.035)
+    ),
+    rgba(255, 255, 255, 0.025);
+}
+
+.rag-note-detail-icon-action.danger {
+  min-width: 60px;
+  color: #ff7487;
+  border-color: rgba(255, 0, 31, 0.3);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 0, 31, 0.1),
+      rgba(255, 255, 255, 0.016)
+    ),
+    rgba(255, 255, 255, 0.022);
+}
+
+.rag-note-detail-icon-action:hover {
+  transform: translateY(-1px);
+  color: #ffffff;
+  border-color: rgba(238, 167, 255, 0.4);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(238, 167, 255, 0.12),
+      rgba(255, 0, 31, 0.055)
+    ),
+    rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 14px rgba(238, 167, 255, 0.08);
+}
+
+.rag-note-detail-icon-action.danger:hover {
+  border-color: rgba(255, 0, 31, 0.48);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 0, 31, 0.17),
+      rgba(255, 255, 255, 0.02)
+    ),
+    rgba(255, 255, 255, 0.035);
+  box-shadow: 0 0 14px rgba(255, 0, 31, 0.1);
+}
+
+.rag-note-detail-icon-action .rag-mask-icon,
+.rag-note-detail-action-img {
+  --rag-icon-size: 11px;
+  --rag-icon-fill: var(--rag-note-icon-gradient);
+
+  flex: 0 0 auto;
+}
+
+.rag-note-detail-icon-action.danger .rag-mask-icon,
+.rag-note-detail-icon-action.danger .rag-note-detail-action-img {
+  --rag-icon-fill: linear-gradient(
+    135deg,
+    #ff001f 0%,
+    #ff7b92 100%
+  );
+}
+
+.rag-note-detail-icon-action > span:not(.rag-mask-icon) {
+  display: inline-block;
+  min-width: 0;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Dar ekran */
+
+@media (max-width: 340px) {
+  .rag-note-detail-bottom-actions {
+    gap: 6px;
+  }
+
+  .rag-note-detail-icon-action {
+    min-width: 64px;
+    padding: 0 9px;
+    font-size: 8.8px;
+  }
+
+  .rag-note-detail-icon-action.export {
+    min-width: 88px;
+  }
+
+  .rag-note-detail-icon-action.danger {
+    min-width: 56px;
+  }
+}

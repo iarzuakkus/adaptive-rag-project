@@ -42,7 +42,20 @@
         "icons/scan.svg",
         "icons/refresh.svg",
         "icons/external-link.svg",
-        "icons/rubbish.svg"
+        "icons/rubbish.svg",
+
+        "icons/note.svg",
+        "icons/personal-note.svg",
+        "icons/file-text.svg",
+        "icons/download.svg",
+        "icons/save.svg",
+        "icons/edit.svg",
+        "icons/folder.svg",
+        "icons/check.svg",
+        "icons/info.svg",
+        "icons/clock.svg",
+        "icons/file-pdf.svg",
+        "icons/link.svg"
       ],
       "matches": [
         "<all_urls>"
@@ -58,6 +71,7 @@
         "core/session-store.js",
         "core/scan-settings-store.js",
         "core/research-store.js",
+        "core/notes-store.js",
 
         "scraping/text-utils.js",
         "scraping/dom-cleaner.js",
@@ -81,12 +95,15 @@
         "ui/widget/events/recommendation-events.js",
         "ui/widget/events/source-events.js",
         "ui/widget/events/highlight-events.js",
+        "ui/widget/events/note-detail-events.js",
+        "ui/widget/events/note-events.js",
 
         "ui/widget/render/widget-shell.js",
         "ui/widget/render/chat-tab.js",
         "ui/widget/render/recommendations-panel.js",
         "ui/widget/render/sources-tab.js",
         "ui/widget/render/source-detail.js",
+        "ui/widget/render/note-detail.js",
         "ui/widget/render/notes-tab.js",
 
         "ui/widget/widget.js"
@@ -102,6 +119,7 @@
         "ui/widget/styles/widget-recommendations.css",
         "ui/widget/styles/widget-source-detail.css",
         "ui/widget/styles/widget-notes.css",
+        "ui/widget/styles/widget-note-detail.css",
         "ui/widget/styles/widget-effects.css"
       ],
       "run_at": "document_idle"
