@@ -25,24 +25,24 @@ MemorAI yalnızca soru-cevap sunmaz; taranan kaynakları yönetir, yeni kaynak �
 <table>
   <tr>
     <td align="center">
-      <img src="docs/images/chat.png" width="260" alt="MemorAI Chat">
+      <img src="docs/chat.png" width="260" alt="MemorAI Chat">
       <br>
       <strong>Chat</strong>
     </td>
     <td align="center">
-      <img src="docs/images/sources.png" width="260" alt="MemorAI Kaynaklar">
+      <img src="docs/sources.png" width="260" alt="MemorAI Kaynaklar">
       <br>
       <strong>Kaynaklar</strong>
     </td>
   </tr>
   <tr>
     <td align="center">
-      <img src="docs/images/recommendations.png" width="260" alt="MemorAI Öneriler">
+      <img src="docs/recommendations.png" width="260" alt="MemorAI Öneriler">
       <br>
       <strong>Öneriler</strong>
     </td>
     <td align="center">
-      <img src="docs/images/notes.png" width="260" alt="MemorAI Notlar">
+      <img src="docs/notes.png" width="260" alt="MemorAI Notlar">
       <br>
       <strong>Notlar</strong>
     </td>
