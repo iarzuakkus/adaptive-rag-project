@@ -11,6 +11,7 @@
  * - Backend'den gelen son chunks bilgisini sayfa üzerinde highlight için geçici olarak saklar.
  * - LLM tarafından kaynak gösterme niyeti algılanırsa son cevabın ilk/en alakalı chunk'ını sayfada gösterir.
  * - LLM tarafından öneri isteği algılanırsa Kaynaklar / Öneriler alanına yönlendirir ve öneri üretimini tetikler.
+ * - LLM tarafından not oluşturma isteği algılanırsa oluşturulan notu notes-store içine kaydeder ve Notlar sekmesini açar.
  * - Sohbet temizleme işlemini yönetir.
  *
  * Not:
@@ -288,9 +289,35 @@
   function getRecommendationAction(result) {
     const actions = getResultActions(result);
 
-    return actions.find((action) => {
-      return getActionType(action) === "generate_recommendations";
-    }) || null;
+    return (
+      actions.find((action) => {
+        return getActionType(action) === "generate_recommendations";
+      }) || null
+    );
+  }
+
+  function getNoteGenerationAction(result) {
+    const actions = getResultActions(result);
+
+    return (
+      actions.find((action) => {
+        return getActionType(action) === "save_generated_note";
+      }) || null
+    );
+  }
+
+  function isNoteGenerationRequestResult(result) {
+    const answerType = getAnswerType(result);
+    const intent = getIntentValue(result);
+
+    if (
+      answerType === "note_generation_request" ||
+      intent === "note_generation_request"
+    ) {
+      return true;
+    }
+
+    return Boolean(getNoteGenerationAction(result));
   }
 
   function isRecommendationRequestResult(result) {
@@ -317,7 +344,9 @@
     const safeChunks = [primaryChunk];
 
     if (window.AdaptiveRagHighlightEvents?.highlightChunksOnPage) {
-      return await window.AdaptiveRagHighlightEvents.highlightChunksOnPage(safeChunks);
+      return await window.AdaptiveRagHighlightEvents.highlightChunksOnPage(
+        safeChunks
+      );
     }
 
     window.dispatchEvent(
@@ -357,7 +386,8 @@
 
     if (!response.success) {
       throw new Error(
-        response.message || "Background üzerinden chat isteği başarısız oldu."
+        response.message ||
+        "Background üzerinden chat isteği başarısız oldu."
       );
     }
 
@@ -370,7 +400,10 @@
     }
 
     if (result.status && result.status !== "success") {
-      const answer = result.answer || "Cevap üretilirken bir sorun oluştu.";
+      const answer =
+        result.answer ||
+        "Cevap üretilirken bir sorun oluştu.";
+
       const errorText = result.error
         ? `\n\nTeknik hata:\n${result.error}`
         : "";
@@ -495,7 +528,40 @@
     await wait(100);
   }
 
-  function getActionBoolean(action, camelKey, snakeKey, defaultValue = true) {
+  async function openNotesArea() {
+    window.dispatchEvent(
+      new CustomEvent("adaptive-rag-open-widget-tab", {
+        detail: {
+          tab: "notes"
+        }
+      })
+    );
+
+    const clicked = clickFirstExistingSelector([
+      "#ragNotesTabBtn",
+      "#ragTabNotes",
+      "#ragNotesTab",
+      "[data-rag-tab='notes']",
+      "[data-tab='notes']",
+      "[data-tab-id='notes']",
+      "[data-target='notes']",
+      "[aria-controls='ragNotesPanel']",
+      ".rag-tab-notes"
+    ]);
+
+    if (!clicked) {
+      clickButtonByText(["Notlar"]);
+    }
+
+    await wait(100);
+  }
+
+  function getActionBoolean(
+    action,
+    camelKey,
+    snakeKey,
+    defaultValue = true
+  ) {
     if (!action || typeof action !== "object") {
       return defaultValue;
     }
@@ -542,6 +608,7 @@
             item.topic ||
             `Öneri ${index + 1}`
           ).trim(),
+
           reason: String(
             item.reason ||
             item.description ||
@@ -557,24 +624,33 @@
 
   function getRecommendationsFromResult(result) {
     if (Array.isArray(result?.recommendations)) {
-      return normalizeRecommendations(result.recommendations);
+      return normalizeRecommendations(
+        result.recommendations
+      );
     }
 
     if (Array.isArray(result?.data?.recommendations)) {
-      return normalizeRecommendations(result.data.recommendations);
+      return normalizeRecommendations(
+        result.data.recommendations
+      );
     }
 
     if (Array.isArray(result?.state?.recommendations)) {
-      return normalizeRecommendations(result.state.recommendations);
+      return normalizeRecommendations(
+        result.state.recommendations
+      );
     }
 
-    const recommendationEvents = window.AdaptiveRagRecommendationEvents;
+    const recommendationEvents =
+      window.AdaptiveRagRecommendationEvents;
 
     if (recommendationEvents?.getState) {
       const state = recommendationEvents.getState();
 
       if (Array.isArray(state?.recommendations)) {
-        return normalizeRecommendations(state.recommendations);
+        return normalizeRecommendations(
+          state.recommendations
+        );
       }
     }
 
@@ -582,84 +658,121 @@
   }
 
   function formatRecommendationsForChat(recommendations) {
-    const safeRecommendations = normalizeRecommendations(recommendations);
+    const safeRecommendations =
+      normalizeRecommendations(recommendations);
 
     if (!safeRecommendations.length) {
-      return "Öneri üretimi başlatıldı. Sonuçları Kaynaklar > Öneriler bölümünde görebilirsin.";
+      return (
+        "Öneri üretimi başlatıldı. " +
+        "Sonuçları Kaynaklar > Öneriler bölümünde görebilirsin."
+      );
     }
 
-    const visibleRecommendations = safeRecommendations.slice(0, 5);
+    const visibleRecommendations =
+      safeRecommendations.slice(0, 5);
 
-    const lines = visibleRecommendations.map((item, index) => {
-      const reason = item.reason
-        ? `\n   ${item.reason}`
-        : "";
+    const lines = visibleRecommendations.map(
+      (item, index) => {
+        const reason = item.reason
+          ? `\n   ${item.reason}`
+          : "";
 
-      return `${index + 1}. ${item.title}${reason}`;
-    });
+        return `${index + 1}. ${item.title}${reason}`;
+      }
+    );
 
-    return `Kaynaklarına göre öneriler hazırlandı. Kaynaklar > Öneriler kısmına da yönlendirdim.\n\n${lines.join("\n\n")}`;
+    return (
+      "Kaynaklarına göre öneriler hazırlandı. " +
+      "Kaynaklar > Öneriler kısmına da yönlendirdim.\n\n" +
+      lines.join("\n\n")
+    );
   }
 
   async function runRecommendationAction(action) {
-    const recommendationEvents = window.AdaptiveRagRecommendationEvents;
+    const recommendationEvents =
+      window.AdaptiveRagRecommendationEvents;
 
     if (
       !recommendationEvents ||
-      typeof recommendationEvents.generateRecommendationsAfterSourceChange !== "function"
+      typeof recommendationEvents
+        .generateRecommendationsAfterSourceChange !== "function"
     ) {
-      console.warn("[CHAT EVENTS] RecommendationEvents modülü bulunamadı.");
+      console.warn(
+        "[CHAT EVENTS] RecommendationEvents modülü bulunamadı."
+      );
+
       return null;
     }
 
     const mode = getActionMode(action);
 
-    const result = await recommendationEvents.generateRecommendationsAfterSourceChange({
-      reason: String(action?.reason || "chat_natural_language_request").trim(),
-      mode,
-      generationMode: mode,
-      focusCurrentPage: false,
-      preserveIfEmpty: true,
-      skipAutoCooldown: getActionBoolean(
-        action,
-        "skipAutoCooldown",
-        "skip_auto_cooldown",
-        true
-      ),
-      forceReloadSources: getActionBoolean(
-        action,
-        "forceReloadSources",
-        "force_reload_sources",
-        true
-      )
-    });
+    return await recommendationEvents
+      .generateRecommendationsAfterSourceChange({
+        reason: String(
+          action?.reason ||
+          "chat_natural_language_request"
+        ).trim(),
 
-    return result;
+        mode,
+        generationMode: mode,
+        focusCurrentPage: false,
+        preserveIfEmpty: true,
+
+        skipAutoCooldown: getActionBoolean(
+          action,
+          "skipAutoCooldown",
+          "skip_auto_cooldown",
+          true
+        ),
+
+        forceReloadSources: getActionBoolean(
+          action,
+          "forceReloadSources",
+          "force_reload_sources",
+          true
+        )
+      });
   }
 
-  async function handleSourceNavigationResult(result, question, refreshWidget) {
+  async function handleSourceNavigationResult(
+    result,
+    question,
+    refreshWidget
+  ) {
     const resultChunks = getResultChunks(result);
     const previousChunks = getSavedChunks();
 
-    const chunks = resultChunks.length > 0
-      ? resultChunks
-      : previousChunks;
+    const chunks =
+      resultChunks.length > 0
+        ? resultChunks
+        : previousChunks;
 
     saveLastChatHighlightData(result, question, {
       preserveExistingChunks: true
     });
 
-    await addMessage("assistant", formatSourceNavigationAnswer(result));
+    await addMessage(
+      "assistant",
+      formatSourceNavigationAnswer(result)
+    );
+
     await refreshIfPossible(refreshWidget);
 
-    const highlighted = await highlightPrimaryChunkOnPage(chunks);
+    const highlighted =
+      await highlightPrimaryChunkOnPage(chunks);
 
     if (!highlighted) {
-      console.warn("[CHAT EVENTS] Kaynak yönlendirme için highlight başarısız.");
+      console.warn(
+        "[CHAT EVENTS] Kaynak yönlendirme için highlight başarısız."
+      );
     }
   }
 
-  async function handleRecommendationRequestResult(result, question, refreshWidget) {
+  async function handleRecommendationRequestResult(
+    result,
+    question,
+    refreshWidget
+  ) {
     const answer = formatChatResult(result);
     const action = getRecommendationAction(result) || {};
 
@@ -670,45 +783,174 @@
     await addMessage("assistant", answer);
     await refreshIfPossible(refreshWidget);
 
-    if (getActionBoolean(action, "openPanel", "open_panel", true)) {
+    if (
+      getActionBoolean(
+        action,
+        "openPanel",
+        "open_panel",
+        true
+      )
+    ) {
       await openRecommendationsArea();
     } else {
       await openSourcesArea();
     }
 
-    const recommendationResult = await runRecommendationAction(action);
+    const recommendationResult =
+      await runRecommendationAction(action);
 
     await refreshIfPossible(refreshWidget);
 
-    if (getActionBoolean(action, "openPanel", "open_panel", true)) {
+    if (
+      getActionBoolean(
+        action,
+        "openPanel",
+        "open_panel",
+        true
+      )
+    ) {
       await openRecommendationsArea();
     } else {
       await openSourcesArea();
     }
 
-    if (getActionBoolean(action, "showInChat", "show_in_chat", true)) {
-      const recommendations = getRecommendationsFromResult(recommendationResult);
+    if (
+      getActionBoolean(
+        action,
+        "showInChat",
+        "show_in_chat",
+        true
+      )
+    ) {
+      const recommendations =
+        getRecommendationsFromResult(
+          recommendationResult
+        );
 
       await addMessage(
         "assistant",
-        formatRecommendationsForChat(recommendations)
+        formatRecommendationsForChat(
+          recommendations
+        )
       );
 
       await refreshIfPossible(refreshWidget);
 
-      if (getActionBoolean(action, "openPanel", "open_panel", true)) {
+      if (
+        getActionBoolean(
+          action,
+          "openPanel",
+          "open_panel",
+          true
+        )
+      ) {
         await openRecommendationsArea();
       }
     }
   }
 
-  async function handleNormalChatResult(result, question, refreshWidget) {
+  async function handleNoteGenerationRequestResult(
+    result,
+    question,
+    refreshWidget
+  ) {
+    const action = getNoteGenerationAction(result);
+
+    if (!action || !action.note) {
+      throw new Error(
+        "Backend oluşturulan not verisini döndürmedi."
+      );
+    }
+
+    const notesStore =
+      window.AdaptiveRagNotesStore;
+
+    if (
+      !notesStore ||
+      typeof notesStore.addGeneratedNote !== "function"
+    ) {
+      throw new Error(
+        "Notlar hafızası yüklenmedi."
+      );
+    }
+
+    const savedNote = await Promise.resolve(
+      notesStore.addGeneratedNote(
+        action.note
+      )
+    );
+
+    if (!savedNote) {
+      throw new Error(
+        "Oluşturulan not Notlar sekmesine kaydedilemedi."
+      );
+    }
+
+    saveLastChatHighlightData(
+      result,
+      question
+    );
+
+    if (
+      getActionBoolean(
+        action,
+        "showInChat",
+        "show_in_chat",
+        true
+      )
+    ) {
+      await addMessage(
+        "assistant",
+        formatChatResult(result)
+      );
+    }
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "adaptive-rag-notes-updated",
+        {
+          detail: {
+            note: savedNote,
+            source: "chat"
+          }
+        }
+      )
+    );
+
+    await refreshIfPossible(refreshWidget);
+
+    if (
+      getActionBoolean(
+        action,
+        "openPanel",
+        "open_panel",
+        true
+      )
+    ) {
+      await openNotesArea();
+    }
+  }
+
+  async function handleNormalChatResult(
+    result,
+    question,
+    refreshWidget
+  ) {
     const answer = formatChatResult(result);
 
-    saveLastChatHighlightData(result, question);
+    saveLastChatHighlightData(
+      result,
+      question
+    );
 
-    await addMessage("assistant", answer);
-    await refreshIfPossible(refreshWidget);
+    await addMessage(
+      "assistant",
+      answer
+    );
+
+    await refreshIfPossible(
+      refreshWidget
+    );
   }
 
   async function handleSendMessage(refreshWidget) {
@@ -724,32 +966,69 @@
     setInputDisabled(true);
 
     try {
-      await addMessage("user", question);
-      await refreshIfPossible(refreshWidget);
+      await addMessage(
+        "user",
+        question
+      );
 
-      const result = await requestChatAnswer(question);
+      await refreshIfPossible(
+        refreshWidget
+      );
+
+      const result =
+        await requestChatAnswer(question);
 
       if (isSourceNavigationResult(result)) {
-        await handleSourceNavigationResult(result, question, refreshWidget);
-      } else if (isRecommendationRequestResult(result)) {
-        await handleRecommendationRequestResult(result, question, refreshWidget);
+        await handleSourceNavigationResult(
+          result,
+          question,
+          refreshWidget
+        );
+      } else if (
+        isRecommendationRequestResult(result)
+      ) {
+        await handleRecommendationRequestResult(
+          result,
+          question,
+          refreshWidget
+        );
+      } else if (
+        isNoteGenerationRequestResult(result)
+      ) {
+        await handleNoteGenerationRequestResult(
+          result,
+          question,
+          refreshWidget
+        );
       } else {
-        await handleNormalChatResult(result, question, refreshWidget);
+        await handleNormalChatResult(
+          result,
+          question,
+          refreshWidget
+        );
       }
     } catch (error) {
-      console.error("[CHAT EVENTS] Backend chat hatası:", error);
+      console.error(
+        "[CHAT EVENTS] Backend chat hatası:",
+        error
+      );
 
       await addMessage(
         "assistant",
         `Backend chat isteği sırasında hata oluştu: ${error.message}`
       );
 
-      await refreshIfPossible(refreshWidget);
+      await refreshIfPossible(
+        refreshWidget
+      );
     } finally {
       setInputDisabled(false);
       scrollToBottom();
 
-      const newInput = document.getElementById("ragChatInput");
+      const newInput =
+        document.getElementById(
+          "ragChatInput"
+        );
 
       if (newInput) {
         newInput.focus();
@@ -772,34 +1051,64 @@
     scrollToBottom();
 
     if (!input || !sendBtn) {
-      console.warn("[CHAT EVENTS] Chat input veya gönder butonu bulunamadı.");
+      console.warn(
+        "[CHAT EVENTS] Chat input veya gönder butonu bulunamadı."
+      );
+
       return;
     }
 
-    if (sendBtn.getAttribute(BOUND_KEY) === "true") {
+    if (
+      sendBtn.getAttribute(BOUND_KEY) === "true"
+    ) {
       return;
     }
 
-    sendBtn.addEventListener("click", async () => {
-      await handleSendMessage(refreshWidget);
-    });
-
-    input.addEventListener("keydown", async (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        await handleSendMessage(refreshWidget);
+    sendBtn.addEventListener(
+      "click",
+      async () => {
+        await handleSendMessage(
+          refreshWidget
+        );
       }
-    });
+    );
 
-    input.addEventListener("input", () => {
-      autoResizeTextarea(input);
-    });
+    input.addEventListener(
+      "keydown",
+      async (event) => {
+        if (
+          event.key === "Enter" &&
+          !event.shiftKey
+        ) {
+          event.preventDefault();
 
-    clearBtn?.addEventListener("click", async () => {
-      await handleClearChat(refreshWidget);
-    });
+          await handleSendMessage(
+            refreshWidget
+          );
+        }
+      }
+    );
 
-    sendBtn.setAttribute(BOUND_KEY, "true");
+    input.addEventListener(
+      "input",
+      () => {
+        autoResizeTextarea(input);
+      }
+    );
+
+    clearBtn?.addEventListener(
+      "click",
+      async () => {
+        await handleClearChat(
+          refreshWidget
+        );
+      }
+    );
+
+    sendBtn.setAttribute(
+      BOUND_KEY,
+      "true"
+    );
   }
 
   window.AdaptiveRagChatEvents = {

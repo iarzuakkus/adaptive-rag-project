@@ -5,13 +5,20 @@ Görev:
 - Chat mesajının niyetini sınıflandırır.
 - Kullanıcı normal bilgi sorusu mu soruyor,
   önceki cevabın kaynağını sayfada görmek mi istiyor,
-  yoksa mevcut kaynaklara göre öneri mi istiyor bunu ayırır.
+  mevcut kaynaklara göre öneri mi istiyor,
+  yoksa kaynaklardan not oluşturmak mı istiyor bunu ayırır.
+
+Desteklenen intent değerleri:
+- normal_chat
+- source_navigation
+- recommendation_request
+- note_generation_request
 
 Kullanım:
 - chat_rag.py içinde answer_chat akışının en başında çağrılır.
-- Eğer intent source_navigation ise yeni RAG cevabı üretilmez.
-- Frontend'e answer_type="source_navigation" ve highlight action döndürülür.
-- Eğer intent recommendation_request ise frontend'e öneri üretme action'ı döndürülür.
+- source_navigation intentinde yeni RAG cevabı üretilmez.
+- recommendation_request intentinde öneri üretme action'ı döndürülür.
+- note_generation_request intentinde not oluşturma action'ı döndürülür.
 """
 
 
@@ -29,16 +36,34 @@ Kod bloğu kullanma.
 Geçerli intent değerleri:
 
 1. normal_chat
-Kullanıcı bilgi istiyor, soru soruyor, özet istiyor, karşılaştırma istiyor veya yeni bir cevap bekliyor.
+
+Kullanıcı bilgi istiyor, soru soruyor, özet istiyor,
+karşılaştırma istiyor veya yeni bir cevap bekliyor.
 
 2. source_navigation
+
 Kullanıcı önceki cevabın nereden alındığını görmek istiyor.
 Kullanıcı cevabın geçtiği yeri sayfada görmek istiyor.
-Kullanıcı kaynak göster, nereden aldın, sayfada göster, bunu göster gibi yönlendirme istiyor.
+Kullanıcı kaynak göster, nereden aldın, sayfada göster,
+bunu göster gibi yönlendirme istiyor.
 
 3. recommendation_request
-Kullanıcı mevcut kaynaklara, aktif sayfaya veya araştırma konusuna göre yeni kaynak önerisi istiyor.
-Kullanıcı araştırmayı genişletmek, benzer kaynaklar bulmak, başka ne okuyacağını öğrenmek veya öneri paneline kaynak önerisi üretmek istiyor.
+
+Kullanıcı mevcut kaynaklara, aktif sayfaya veya araştırma
+konusuna göre yeni kaynak önerisi istiyor.
+
+Kullanıcı araştırmayı genişletmek, benzer kaynaklar bulmak,
+başka ne okuyacağını öğrenmek veya öneri paneline kaynak
+önerisi üretmek istiyor.
+
+4. note_generation_request
+
+Kullanıcı aktif sayfadan, mevcut kaynaklardan, belirli bir
+konudan veya önceki araştırma bağlamından not oluşturulmasını
+istiyor.
+
+Kullanıcı oluşturulan notun Notlar sekmesine kaydedilmesini
+veya not olarak hazırlanmasını istiyor.
 
 source_navigation örnekleri:
 - Kaynak göster
@@ -69,6 +94,22 @@ recommendation_request örnekleri:
 - Bu konuyu derinleştirmek için neye bakayım?
 - Bana araştırma önerisi ver
 
+note_generation_request örnekleri:
+- Bu kaynaklardan bana not oluştur
+- Bu konulardan not çıkar
+- Bu sayfadaki bilgilerden not hazırla
+- Önemli yerleri not haline getir
+- Bunları Notlar sekmesine kaydet
+- Bu araştırmadan düzenli bir not oluştur
+- Bu kaynakları başlıklandırarak not çıkar
+- Bu konu hakkında çalışma notu hazırla
+- Tüm kaynaklardan genel bir not oluştur
+- Aktif sayfadan not oluştur
+- Bu bilgileri notlarıma ekle
+- Önceki cevaptan not oluştur
+- Bunları ders notu haline getir
+- Kaynaklardaki önemli bilgileri notlaştır
+
 normal_chat örnekleri:
 - Bu sayfa ne anlatıyor?
 - Bu konuyu özetle
@@ -81,14 +122,49 @@ normal_chat örnekleri:
 - Bunu açıklar mısın?
 
 Önemli ayrım kuralları:
-- Kullanıcı "kaynak göster", "nerede yazıyor", "sayfada göster" diyorsa source_navigation seç.
-- Kullanıcı "kaynak öner", "öneri sun", "benzer kaynak bul", "ne okuyayım" diyorsa recommendation_request seç.
-- Kullanıcı sadece bir bilgi sorusu soruyorsa normal_chat seç.
-- Kullanıcı hem kaynak hem öneri kelimesini kullanıyorsa ve amacı yeni kaynak bulmaksa recommendation_request seç.
-- Kullanıcı mevcut cevabın kaynağını görmek istiyorsa source_navigation seç.
+
+- Kullanıcı "kaynak göster", "nerede yazıyor",
+  "sayfada göster" diyorsa source_navigation seç.
+
+- Kullanıcı "kaynak öner", "öneri sun",
+  "benzer kaynak bul", "ne okuyayım" diyorsa
+  recommendation_request seç.
+
+- Kullanıcı "not oluştur", "not çıkar", "not hazırla",
+  "notlara kaydet", "not haline getir" veya "notlaştır"
+  diyorsa note_generation_request seç.
+
+- Kullanıcı yalnızca "özetle" diyorsa normal_chat seç.
+
+- Kullanıcı "özet not oluştur" veya "özeti notlara kaydet"
+  diyorsa note_generation_request seç.
+
+- Kullanıcı yalnızca bilgi sorusu soruyorsa normal_chat seç.
+
+- Kullanıcı hem kaynak hem öneri kelimesini kullanıyorsa ve
+  amacı yeni kaynak bulmaksa recommendation_request seç.
+
+- Kullanıcı mevcut kaynaklardan içerik çıkarıp not hazırlanmasını
+  istiyorsa note_generation_request seç.
+
+- Kullanıcı mevcut cevabın kaynağını görmek istiyorsa
+  source_navigation seç.
+
 - Emin değilsen normal_chat seç.
 
-Dönüş formatı kesinlikle şu JSON yapısında olmalı:
+note_generation_request action scope kuralları:
+
+- "Bu sayfadan", "aktif sayfadan" deniyorsa:
+  scope = "active_page"
+
+- "Tüm kaynaklardan", "bütün kaynaklardan" deniyorsa:
+  scope = "all_sources"
+
+- "Bu kaynaklardan", "bu konudan", "önceki bilgilerden"
+  deniyorsa:
+  scope = "retrieved_sources"
+
+Dönüş formatı kesinlikle şu JSON yapılarından biri olmalı:
 
 {
   "intent": "normal_chat",
@@ -118,6 +194,22 @@ veya:
     "show_in_chat": true
   }
 }
+
+veya:
+
+{
+  "intent": "note_generation_request",
+  "confidence": 0.0,
+  "reason": "kısa neden",
+  "action": {
+    "type": "generate_note",
+    "reason": "chat_natural_language_request",
+    "scope": "retrieved_sources",
+    "title": "",
+    "open_panel": true,
+    "show_in_chat": true
+  }
+}
 """
 
 
@@ -127,7 +219,7 @@ def build_chat_intent_prompt(
     has_previous_chunks: bool = False,
 ) -> str:
     """
-    Chat niyet sınıflandırma prompt'u üretir.
+    Chat niyet sınıflandırma prompt'unu üretir.
     """
 
     return f"""
@@ -143,16 +235,48 @@ Sistemde önceki assistant cevabı var mı?
 {has_previous_chunks}
 
 Kurallar:
-- Kullanıcı önceki cevabın kaynağını, sayfadaki yerini veya nereden alındığını soruyorsa intent source_navigation olmalı.
+
+- Kullanıcı önceki cevabın kaynağını, sayfadaki yerini veya
+  nereden alındığını soruyorsa intent source_navigation olmalı.
+
 - Kullanıcı yeni bilgi istiyorsa intent normal_chat olmalı.
-- Kullanıcı mevcut kaynaklara, aktif sayfaya veya araştırma konusuna göre yeni kaynak önerisi istiyorsa intent recommendation_request olmalı.
-- Kullanıcı "bana kaynak öner", "öneri sun", "benzer kaynak bul", "araştırmayı genişlet", "ne okuyayım", "başka hangi kaynaklara bakayım" gibi ifadeler kullanıyorsa recommendation_request seç.
-- Kullanıcı "bunu göster", "şunu göster", "nerede yazıyor" gibi bağlama bağlı konuşuyorsa ve önceki cevap/chunk varsa source_navigation seç.
-- "Kaynak göster" ifadesi önceki cevabın kaynağını görmek anlamındaysa source_navigation seç.
-- "Kaynak öner" ifadesi yeni kaynak önerisi istemek anlamındaysa recommendation_request seç.
+
+- Kullanıcı mevcut kaynaklara, aktif sayfaya veya araştırma
+  konusuna göre yeni kaynak önerisi istiyorsa intent
+  recommendation_request olmalı.
+
+- Kullanıcı kaynaklardan, aktif sayfadan, önceki cevaptan veya
+  araştırma konusundan not oluşturulmasını istiyorsa intent
+  note_generation_request olmalı.
+
+- Kullanıcı "bana kaynak öner", "öneri sun", "benzer kaynak bul",
+  "araştırmayı genişlet", "ne okuyayım" veya
+  "başka hangi kaynaklara bakayım" gibi ifadeler kullanıyorsa
+  recommendation_request seç.
+
+- Kullanıcı "not oluştur", "not çıkar", "not hazırla",
+  "notlara kaydet", "not haline getir", "notlaştır" veya
+  "çalışma notu hazırla" gibi ifadeler kullanıyorsa
+  note_generation_request seç.
+
+- Kullanıcı yalnızca "özetle" diyorsa normal_chat seç.
+
+- Kullanıcı "özet not oluştur" veya "özeti notlarıma kaydet"
+  diyorsa note_generation_request seç.
+
+- Kullanıcı "bunu göster", "şunu göster", "nerede yazıyor"
+  gibi bağlama bağlı konuşuyorsa ve önceki cevap/chunk varsa
+  source_navigation seç.
+
+- "Kaynak göster" ifadesi önceki cevabın kaynağını görmek
+  anlamındaysa source_navigation seç.
+
+- "Kaynak öner" ifadesi yeni kaynak önerisi istemek
+  anlamındaysa recommendation_request seç.
+
 - Emin değilsen normal_chat seç.
 
-recommendation_request seçersen action alanını mutlaka şu şekilde döndür:
+recommendation_request seçersen action alanını mutlaka şöyle döndür:
 
 {{
   "type": "generate_recommendations",
@@ -162,10 +286,39 @@ recommendation_request seçersen action alanını mutlaka şu şekilde döndür:
   "show_in_chat": true
 }}
 
+note_generation_request seçersen action alanını mutlaka döndür.
+
+Scope belirleme:
+
+- Aktif sayfadan not isteniyorsa:
+  "active_page"
+
+- Tüm kaynaklardan not isteniyorsa:
+  "all_sources"
+
+- Mevcut veya ilgili kaynaklardan not isteniyorsa:
+  "retrieved_sources"
+
+Not başlığı kullanıcı tarafından açıkça verilmişse title alanına yaz.
+Başlık verilmemişse boş string döndür.
+
+note_generation_request action formatı:
+
+{{
+  "type": "generate_note",
+  "reason": "chat_natural_language_request",
+  "scope": "retrieved_sources",
+  "title": "",
+  "open_panel": true,
+  "show_in_chat": true
+}}
+
 Dönüş örnekleri:
 
 Kullanıcı: "Bana kaynak öner"
+
 JSON:
+
 {{
   "intent": "recommendation_request",
   "confidence": 0.95,
@@ -179,8 +332,64 @@ JSON:
   }}
 }}
 
-Kullanıcı: "Bunu nereden aldın?"
+Kullanıcı: "Bu kaynaklardan bana not oluştur"
+
 JSON:
+
+{{
+  "intent": "note_generation_request",
+  "confidence": 0.97,
+  "reason": "Kullanıcı mevcut kaynaklardan düzenli bir not oluşturulmasını istiyor.",
+  "action": {{
+    "type": "generate_note",
+    "reason": "chat_natural_language_request",
+    "scope": "retrieved_sources",
+    "title": "",
+    "open_panel": true,
+    "show_in_chat": true
+  }}
+}}
+
+Kullanıcı: "Aktif sayfadan Karadeniz hakkında not oluştur"
+
+JSON:
+
+{{
+  "intent": "note_generation_request",
+  "confidence": 0.98,
+  "reason": "Kullanıcı aktif sayfa içeriğinden başlıklı bir not oluşturulmasını istiyor.",
+  "action": {{
+    "type": "generate_note",
+    "reason": "chat_natural_language_request",
+    "scope": "active_page",
+    "title": "Karadeniz",
+    "open_panel": true,
+    "show_in_chat": true
+  }}
+}}
+
+Kullanıcı: "Tüm kaynaklardan genel bir çalışma notu hazırla"
+
+JSON:
+
+{{
+  "intent": "note_generation_request",
+  "confidence": 0.97,
+  "reason": "Kullanıcı bütün kaynaklardan genel bir çalışma notu hazırlanmasını istiyor.",
+  "action": {{
+    "type": "generate_note",
+    "reason": "chat_natural_language_request",
+    "scope": "all_sources",
+    "title": "Genel çalışma notu",
+    "open_panel": true,
+    "show_in_chat": true
+  }}
+}}
+
+Kullanıcı: "Bunu nereden aldın?"
+
+JSON:
+
 {{
   "intent": "source_navigation",
   "confidence": 0.95,
@@ -188,7 +397,9 @@ JSON:
 }}
 
 Kullanıcı: "Bu sayfa ne anlatıyor?"
+
 JSON:
+
 {{
   "intent": "normal_chat",
   "confidence": 0.9,
