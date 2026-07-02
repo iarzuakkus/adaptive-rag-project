@@ -3,9 +3,9 @@
  *
  * Görev:
  * - Notlar sekmesindeki kullanıcı etkileşimlerini yönetir.
- * - Kaynak seçimi, kişisel not seçimi, kişisel not silme ve
- *   not tipi seçimi işlemlerini bağlar.
- * - Kişisel not kaydetme işlemini yönetir.
+ * - Kaynak seçimi, kişisel not seçimi ve not tipi seçimini bağlar.
+ * - Kişisel notları frontend store'a ve backend vector store'a kaydeder.
+ * - Kişisel not silindiğinde frontend ve backend kayıtlarını kaldırır.
  * - Seçilen kaynak ve kişisel notları backend'e gönderir.
  * - Backend tarafından üretilen notu notes-store içine kaydeder.
  * - TXT dışa aktarma ve kayıtlı not işlemlerini bağlar.
@@ -126,6 +126,34 @@
     });
   }
 
+  function ensureBackendActionSuccess(
+    response,
+    fallbackMessage
+  ) {
+    if (!response || response.success !== true) {
+      throw new Error(
+        response?.message ||
+        response?.error ||
+        fallbackMessage
+      );
+    }
+
+    const backendResult = response.data;
+
+    if (
+      backendResult &&
+      backendResult.success === false
+    ) {
+      throw new Error(
+        backendResult.message ||
+        backendResult.error ||
+        fallbackMessage
+      );
+    }
+
+    return backendResult || {};
+  }
+
   function normalizeSourceForBackend(source) {
     const raw =
       source?.raw &&
@@ -230,6 +258,12 @@
         note?.text ||
         note?.body ||
         note?.content
+      ),
+
+      session_id: safeText(
+        note?.session_id ||
+        note?.sessionId ||
+        getActiveSessionId()
       ),
 
       created_at: safeText(
@@ -461,15 +495,49 @@
             "data-personal-note-delete-id"
           );
 
+          if (!noteId) {
+            return;
+          }
+
           const shouldDelete = window.confirm(
             "Bu kişisel not silinsin mi?"
           );
 
-          if (!shouldDelete) return;
+          if (!shouldDelete) {
+            return;
+          }
 
-          store.deletePersonalNote?.(noteId);
+          button.disabled = true;
+          button.setAttribute("aria-busy", "true");
 
-          await rerender(renderActiveTab);
+          try {
+            const response = await sendRuntimeMessage({
+              type: "DELETE_PERSONAL_NOTE",
+              noteId
+            });
+
+            ensureBackendActionSuccess(
+              response,
+              "Kişisel not vector hafızadan silinemedi."
+            );
+
+            store.deletePersonalNote?.(noteId);
+          } catch (error) {
+            console.error(
+              "[NOTE EVENTS] Kişisel not silme hatası:",
+              error
+            );
+
+            window.alert(
+              error?.message ||
+              "Kişisel not silinemedi."
+            );
+          } finally {
+            button.disabled = false;
+            button.removeAttribute("aria-busy");
+
+            await rerender(renderActiveTab);
+          }
         });
       });
 
@@ -525,7 +593,9 @@
       "ragSaveDraftNoteBtn"
     );
 
-    if (!store || !input) return;
+    if (!store || !input) {
+      return;
+    }
 
     input.addEventListener("input", () => {
       const value = input.value || "";
@@ -541,9 +611,74 @@
     saveButton?.addEventListener(
       "click",
       async () => {
-        store.saveDraftNote?.();
+        if (saveButton.disabled) {
+          return;
+        }
 
-        await rerender(renderActiveTab);
+        const savedPersonalNote =
+          store.saveDraftNote?.();
+
+        if (!savedPersonalNote) {
+          await rerender(renderActiveTab);
+          return;
+        }
+
+        saveButton.disabled = true;
+        saveButton.setAttribute(
+          "aria-busy",
+          "true"
+        );
+
+        try {
+          const payload =
+            normalizePersonalNoteForBackend(
+              savedPersonalNote
+            );
+
+          const response = await sendRuntimeMessage({
+            type: "SAVE_PERSONAL_NOTE",
+            payload
+          });
+
+          ensureBackendActionSuccess(
+            response,
+            "Kişisel not vector hafızaya kaydedilemedi."
+          );
+
+          console.log(
+            "[NOTE EVENTS] Kişisel not vector hafızaya kaydedildi:",
+            savedPersonalNote.id
+          );
+        } catch (error) {
+          console.error(
+            "[NOTE EVENTS] Kişisel not kaydetme hatası:",
+            error
+          );
+
+          /*
+           * Backend kaydı başarısız olursa local not geri alınır.
+           * Kullanıcının yazdığı metin tekrar taslağa yerleştirilir.
+           */
+          store.deletePersonalNote?.(
+            savedPersonalNote.id
+          );
+
+          store.setDraftNote?.(
+            savedPersonalNote.text || ""
+          );
+
+          window.alert(
+            error?.message ||
+            "Kişisel not kaydedilemedi."
+          );
+        } finally {
+          saveButton.disabled = false;
+          saveButton.removeAttribute(
+            "aria-busy"
+          );
+
+          await rerender(renderActiveTab);
+        }
       }
     );
   }

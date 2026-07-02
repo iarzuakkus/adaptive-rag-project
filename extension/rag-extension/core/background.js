@@ -48,6 +48,18 @@ function getChunkId(request) {
   );
 }
 
+function getPersonalNoteId(request) {
+  return (
+    request?.noteId ||
+    request?.note_id ||
+    request?.id ||
+    request?.payload?.noteId ||
+    request?.payload?.note_id ||
+    request?.payload?.id ||
+    ""
+  );
+}
+
 function callBackendMethod(
   backend,
   methodName,
@@ -228,12 +240,35 @@ chrome.runtime.onMessage.addListener(
           }
         ),
 
-      /* -------------------- Notlar -------------------- */
+      /* -------------------- Oluşturulan Notlar -------------------- */
 
       GENERATE_NOTE: () =>
         callBackendMethod(
           backend,
           "generateNote",
+          getPayload(request)
+        ),
+
+      /* -------------------- Kişisel Notlar -------------------- */
+
+      SAVE_PERSONAL_NOTE: () =>
+        callBackendMethod(
+          backend,
+          "savePersonalNote",
+          getPayload(request)
+        ),
+
+      DELETE_PERSONAL_NOTE: () =>
+        callBackendMethod(
+          backend,
+          "deletePersonalNote",
+          getPersonalNoteId(request)
+        ),
+
+      CLEAR_PERSONAL_NOTES_SESSION: () =>
+        callBackendMethod(
+          backend,
+          "clearPersonalNotesSession",
           getPayload(request)
         )
     };

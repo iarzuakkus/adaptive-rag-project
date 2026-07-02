@@ -139,28 +139,36 @@
   }
 
   function storageRemove(key) {
-  return new Promise((resolve) => {
-    const storage = getChromeStorage();
+    return new Promise((resolve) => {
+      const storage = getChromeStorage();
 
-    if (!storage) {
-      resolve(false);
-      return;
-    }
+      if (!storage) {
+        resolve(false);
+        return;
+      }
 
-    try {
-      storage.remove([key], () => {
-        if (chrome.runtime?.lastError) {
-          resolve(false);
+      try {
+        storage.remove([key], () => {
+          resolve(!chrome.runtime?.lastError);
+        });
+      } catch (error) {
+        resolve(false);
+      }
+    });
+  }
+
+  function sendRuntimeMessage(message) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
           return;
         }
 
-        resolve(true);
+        resolve(response);
       });
-    } catch (error) {
-      resolve(false);
-    }
-  });
-}
+    });
+  }
 
   function persistState() {
     const persistableState = {
@@ -1356,16 +1364,31 @@ function resetNotesState() {
 async function clearNotesSession() {
   cancelPendingGeneration();
 
+  const noteIds = state.personalNotes
+    .map((note) => note.id)
+    .filter(Boolean);
+
+  if (noteIds.length) {
+    try {
+      await sendRuntimeMessage({
+        type: "CLEAR_PERSONAL_NOTES_SESSION",
+        payload: {
+          note_ids: noteIds,
+        },
+      });
+    } catch (error) {
+      console.warn(
+        "[NOTES STORE] Kişisel not vektörleri temizlenemedi:",
+        error
+      );
+    }
+  }
+
   state = {
     ...clone(DEFAULT_STATE),
     hydrated: true,
   };
 
-  /*
-   * V2 anahtarı mevcut not state'idir.
-   * V1 anahtarı da silinmelidir; aksi halde sonraki sayfa
-   * yenilemesinde migration eski notları tekrar yükleyebilir.
-   */
   await storageRemove(STORAGE_KEY);
   await storageRemove("memorai_notes_state_v1");
 

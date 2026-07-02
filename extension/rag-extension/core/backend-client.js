@@ -12,6 +12,8 @@
   - Mock veri üretmez.
   - Öneri üretme payload'ını kırpmaz; mode ve exclude alanlarını backend'e taşır.
   - Not üretme isteğini /notes/generate endpoint'ine gönderir.
+  - Kişisel notları vector hafızaya ekleme, silme ve oturum bazlı temizleme
+    işlemlerini yönetir.
 */
 
 (function () {
@@ -30,6 +32,7 @@
   const PDF_TIMEOUT_MS = 60000;
   const RECOMMENDATION_TIMEOUT_MS = 60000;
   const NOTE_TIMEOUT_MS = 90000;
+  const PERSONAL_NOTE_TIMEOUT_MS = 45000;
 
   /* -------------------- URL Yardımcıları -------------------- */
 
@@ -250,29 +253,36 @@
 
     return {
       sources: safeArray(payload.sources),
+
       source_count: Number(
         payload.source_count ||
         payload.sourceCount ||
         0
       ),
+
       force: payload.force === true,
 
       mode,
       generation_mode: mode,
-      reason: String(payload.reason || ""),
+
+      reason: safeString(payload.reason),
 
       exclude_recommendations: safeArray(
         payload.exclude_recommendations
       ),
+
       exclude_urls: safeArray(
         payload.exclude_urls
       ),
+
       exclude_queries: safeArray(
         payload.exclude_queries
       ),
+
       exclude_titles: safeArray(
         payload.exclude_titles
       ),
+
       exclude_domains: safeArray(
         payload.exclude_domains
       )
@@ -317,10 +327,9 @@
         payload.customTitle
       ),
 
-      language: safeString(
-        payload.language,
-        "tr"
-      ) || "tr",
+      language:
+        safeString(payload.language, "tr") ||
+        "tr",
 
       sources,
 
@@ -346,6 +355,60 @@
       ),
 
       force: payload.force === true
+    };
+  }
+
+  /* -------------------- Kişisel Not Payload -------------------- */
+
+  function buildPersonalNotePayload(payload = {}) {
+    return {
+      note_id: safeString(
+        payload.note_id ||
+        payload.noteId ||
+        payload.id
+      ),
+
+      title:
+        safeString(
+          payload.title,
+          "Kişisel not"
+        ) || "Kişisel not",
+
+      text: safeString(
+        payload.text ||
+        payload.body ||
+        payload.content
+      ),
+
+      session_id: safeString(
+        payload.session_id ||
+        payload.sessionId
+      ),
+
+      created_at: safeString(
+        payload.created_at ||
+        payload.createdAt
+      )
+    };
+  }
+
+  function buildClearPersonalNotesPayload(payload = {}) {
+    const noteIds = safeArray(
+      payload.note_ids ||
+      payload.noteIds
+    )
+      .map((noteId) => safeString(noteId))
+      .filter(Boolean);
+
+    return {
+      session_id: safeString(
+        payload.session_id ||
+        payload.sessionId
+      ),
+
+      note_ids: Array.from(
+        new Set(noteIds)
+      )
     };
   }
 
@@ -473,6 +536,7 @@
         payload.source_count ||
         payload.sourceCount ||
         "",
+
       mode: "refresh"
     });
 
@@ -509,10 +573,11 @@
     );
   }
 
-  /* -------------------- Notlar -------------------- */
+  /* -------------------- Oluşturulan Notlar -------------------- */
 
   function generateNote(payload = {}) {
-    const requestPayload = buildNotePayload(payload);
+    const requestPayload =
+      buildNotePayload(payload);
 
     console.log(
       "[BACKEND CLIENT] Note payload:",
@@ -527,6 +592,101 @@
           body: requestPayload,
           timeoutMs: NOTE_TIMEOUT_MS
         })
+    );
+  }
+
+  /* -------------------- Kişisel Notlar -------------------- */
+
+  function savePersonalNote(payload = {}) {
+    const requestPayload =
+      buildPersonalNotePayload(payload);
+
+    return safeRequest(
+      "/notes/personal POST",
+      () => {
+        if (!requestPayload.note_id) {
+          throw new Error(
+            "Kişisel not için note_id boş olamaz."
+          );
+        }
+
+        if (!requestPayload.text) {
+          throw new Error(
+            "Kişisel not metni boş olamaz."
+          );
+        }
+
+        console.log(
+          "[BACKEND CLIENT] Personal note payload:",
+          requestPayload
+        );
+
+        return requestBackend(
+          "/notes/personal",
+          {
+            method: "POST",
+            body: requestPayload,
+            timeoutMs: PERSONAL_NOTE_TIMEOUT_MS
+          }
+        );
+      }
+    );
+  }
+
+  function deletePersonalNote(noteId) {
+    return safeRequest(
+      "/notes/personal DELETE",
+      () => {
+        const safeNoteId = safeString(noteId);
+
+        if (!safeNoteId) {
+          throw new Error(
+            "Silinecek kişisel not için noteId boş olamaz."
+          );
+        }
+
+        return requestBackend(
+          `/notes/personal/${encodeURIComponent(safeNoteId)}`,
+          {
+            method: "DELETE",
+            timeoutMs: PERSONAL_NOTE_TIMEOUT_MS
+          }
+        );
+      }
+    );
+  }
+
+  function clearPersonalNotesSession(payload = {}) {
+    const requestPayload =
+      buildClearPersonalNotesPayload(payload);
+
+    return safeRequest(
+      "/notes/personal/clear-session POST",
+      () => {
+        if (
+          !requestPayload.session_id &&
+          !requestPayload.note_ids.length
+        ) {
+          throw new Error(
+            "Toplu kişisel not temizliği için sessionId " +
+            "veya noteIds gereklidir."
+          );
+        }
+
+        console.log(
+          "[BACKEND CLIENT] Personal note session cleanup payload:",
+          requestPayload
+        );
+
+        return requestBackend(
+          "/notes/personal/clear-session",
+          {
+            method: "POST",
+            body: requestPayload,
+            timeoutMs: PERSONAL_NOTE_TIMEOUT_MS
+          }
+        );
+      }
     );
   }
 
@@ -549,6 +709,10 @@
     getRecommendations,
     generateRecommendations,
 
-    generateNote
+    generateNote,
+
+    savePersonalNote,
+    deletePersonalNote,
+    clearPersonalNotesSession
   };
 })();

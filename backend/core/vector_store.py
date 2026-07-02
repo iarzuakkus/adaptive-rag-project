@@ -429,6 +429,19 @@ class VectorStore:
         sources = {}
 
         for document in self.documents:
+            metadata = document.get("metadata") or {}
+
+            document_type = (
+                document.get("document_type")
+                or metadata.get("document_type")
+                or ""
+            )
+
+            # Kişisel notlar semantic search içinde kalır fakat
+            # Kaynaklar sekmesinde web kaynağı olarak gösterilmez.
+            if document_type == "personal_note":
+                continue
+
             source_id = document.get("source_id")
 
             if not source_id:
